@@ -43,16 +43,15 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
     queued = 0
     traversed = 0
     consumption_matrix = utilities.ConsumptionMatrix(sync_net)
+    viz,places_sort_list = visualization.graphviz_visualization(sync_net, image_format="png", initial_marking=sync_im,
+                                                final_marking=sync_fm, current_marking=None)
     # h1 = ch.test_estimated_heuristic(incidence_matrix,consumption_matrix,place_index,trans_index,sync_net,cost_vec,sync_im,sync_fm)
     # ----------Line 10------------
     while len(open_set) > 0:
         curr = heapq.heappop(open_set)
         current_marking = curr.m
-        gviz = visualization.graphviz_visualization(sync_net, image_format="png", initial_marking=sync_im,
-                                                    final_marking=sync_fm, current_marking=current_marking,
-                                                    decorations=None, debug=False,
-                                                    set_rankdir=None)
-        visualizer.save(gviz, os.path.join("E:/Thesis/img", str(visited)+".png"))
+        new_viz = visualization.graphviz_state_change(viz, places_sort_list, current_marking)
+        visualizer.save(new_viz, os.path.join("E:/Thesis/img", str(visited)+".png"))
         curr_vec = utilities.encode_marking(current_marking, place_index)
         if curr_vec == fin_vec:
             result = utilities.reconstruct_alignment(curr, visited, queued, traversed,
