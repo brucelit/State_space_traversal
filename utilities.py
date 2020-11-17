@@ -116,14 +116,41 @@ def construct_incident_matrix(net):
         p_index[p] = len(p_index)
     for t in net.transitions:
         t_index[t] = len(t_index)
-    a_matrix = [[0 for i in range(len(t_index))] for j in range(len(p_index))]
+    p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name)
+    t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name)
+    new_p_index = dict()
+    for i in range(len(p_index_sort)):
+        new_p_index[p_index_sort[i][0]] = i
+    new_t_index = dict()
+    for i in range(len(t_index_sort)):
+        new_t_index[t_index_sort[i][0]] = i
+    a_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
     for p in net.places:
         for a in p.in_arcs:
-            a_matrix[p_index[p]][t_index[a.source]] += 1
+            a_matrix[new_p_index[p]][new_t_index[a.source]] += 1
         for a in p.out_arcs:
-            a_matrix[p_index[p]][t_index[a.target]] -= 1
-    return a_matrix, p_index, t_index
+            a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
+    return a_matrix, new_p_index, new_t_index
 
+def construct_consumption_matrix(net):
+    p_index, t_index = {}, {}
+    for p in net.places:
+        p_index[p] = len(p_index)
+    for t in net.transitions:
+        t_index[t] = len(t_index)
+    p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name)
+    t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name)
+    new_p_index = dict()
+    for i in range(len(p_index_sort)):
+        new_p_index[p_index_sort[i][0]] = i
+    new_t_index = dict()
+    for i in range(len(t_index_sort)):
+        new_t_index[t_index_sort[i][0]] = i
+    a_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
+    for p in net.places:
+        for a in p.out_arcs:
+            a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
+    return a_matrix
 
 def vectorize_initial_final_cost(place_index, trans_index, ini, fin, cost_function):
     ini_vec = encode_marking(ini, place_index)
@@ -188,7 +215,7 @@ def construct(net):
 
 
 class State:
-    def __init__(self, f, g, h, t, m, m_tuple, p, x):
+    def __init__(self, f, g, h, t, m, m_tuple, p, solution_x):
         self.f = f
         self.g = g
         self.h = h
@@ -196,7 +223,8 @@ class State:
         self.m = m
         self.mt = m_tuple
         self.p = p
-        self.x = x
+        self.solution_x = solution_x
+        # self.last_sync = last_sync
 
     def __lt__(self, other):
         if self.f < other.f:
@@ -405,42 +433,42 @@ def copy_into(source_net, target_net, upper, skip):
 
     return t_map, p_map
 
-
-def construct_sync_net(pn1, im1, fm1, pn2, im2, fm2, skip):
-    sync_net = PetriNet('synchronous_product_net of %s and %s' % (pn1.name, pn2.name))
-    t1_map, p1_map = copy_into(pn1, sync_net, True, skip)
-    t2_map, p2_map = copy_into(pn2, sync_net, False, skip)
-    costs = dict()
-
-    for t1 in pn1.transitions:
-        costs[t1_map[t1]] = 1
-    for t2 in pn2.transitions:
-        costs[t2_map[t2]] = 1
-
-    for t1 in pn1.transitions:
-        for t2 in pn2.transitions:
-            if t1.label == t2.label:
-                sync = PetriNet.Transition((t1.name, t2.name), (t1.label, t2.label))
-                sync_net.transitions.add(sync)
-                costs[sync] = sync_costs[(t1, t2)]
-                for a in t1.in_arcs:
-                    add_arc_from_to(p1_map[a.source], sync, sync_net)
-                for a in t2.in_arcs:
-                    add_arc_from_to(p2_map[a.source], sync, sync_net)
-                for a in t1.out_arcs:
-                    add_arc_from_to(sync, p1_map[a.target], sync_net)
-                for a in t2.out_arcs:
-                    add_arc_from_to(sync, p2_map[a.target], sync_net)
-
-    sync_im = Marking()
-    sync_fm = Marking()
-    for p in im1:
-        sync_im[p1_map[p]] = im1[p]
-    for p in im2:
-        sync_im[p2_map[p]] = im2[p]
-    for p in fm1:
-        sync_fm[p1_map[p]] = fm1[p]
-    for p in fm2:
-        sync_fm[p2_map[p]] = fm2[p]
-
-    return sync_net, sync_im, sync_fm, costs
+#
+# def construct_sync_net(pn1, im1, fm1, pn2, im2, fm2, skip):
+#     sync_net = PetriNet('synchronous_product_net of %s and %s' % (pn1.name, pn2.name))
+#     t1_map, p1_map = copy_into(pn1, sync_net, True, skip)
+#     t2_map, p2_map = copy_into(pn2, sync_net, False, skip)
+#     costs = dict()
+#
+#     for t1 in pn1.transitions:
+#         costs[t1_map[t1]] = 1
+#     for t2 in pn2.transitions:
+#         costs[t2_map[t2]] = 1
+#
+#     for t1 in pn1.transitions:
+#         for t2 in pn2.transitions:
+#             if t1.label == t2.label:
+#                 sync = PetriNet.Transition((t1.name, t2.name), (t1.label, t2.label))
+#                 sync_net.transitions.add(sync)
+#                 costs[sync] = sync_costs[(t1, t2)]
+#                 for a in t1.in_arcs:
+#                     add_arc_from_to(p1_map[a.source], sync, sync_net)
+#                 for a in t2.in_arcs:
+#                     add_arc_from_to(p2_map[a.source], sync, sync_net)
+#                 for a in t1.out_arcs:
+#                     add_arc_from_to(sync, p1_map[a.target], sync_net)
+#                 for a in t2.out_arcs:
+#                     add_arc_from_to(sync, p2_map[a.target], sync_net)
+#
+#     sync_im = Marking()
+#     sync_fm = Marking()
+#     for p in im1:
+#         sync_im[p1_map[p]] = im1[p]
+#     for p in im2:
+#         sync_im[p2_map[p]] = im2[p]
+#     for p in fm1:
+#         sync_fm[p1_map[p]] = fm1[p]
+#     for p in fm2:
+#         sync_fm[p2_map[p]] = fm2[p]
+#
+#     return sync_net, sync_im, sync_fm, costs

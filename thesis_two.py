@@ -1,101 +1,117 @@
 import heapq
+import os
 
 import numpy as np
 from pm4py.objects import petri
 from pm4py.objects.petri import align_utils as utils
-from pm4py.objects.petri.utils import decorate_places_preset_trans, decorate_transitions_prepostset
 
 from astar_implementation import utilities as utilities
-
+from astar_implementation import heuristic
+from astar_implementation import visualization
+from pm4py.visualization.petrinet import visualizer
 ret_tuple_as_trans_desc = False
 
 
-def astar_with_split(sync_net, sync_im, sync_fm, cost_function, split_list):
+def astar_with_split(sync_net, sync_im, sync_fm, consumption_matrix, incidence_matrix, p_index, t_index, cost_function, split_lst, visited):
     # ---------------Line 1-9----------------
-    decorate_transitions_prepostset(sync_net)
-    decorate_places_preset_trans(sync_net)
-    incidence_matrix = petri.incidence_matrix.construct(sync_net)
-    ini_vec, fin_vec, cost_vec = utils.__vectorize_initial_final_cost(incidence_matrix, sync_im, sync_fm, cost_function)
+    ini_vec, fin_vec, cost_vec = utilities.vectorize_initial_final_cost(p_index, t_index, sync_im, sync_fm, cost_function)
     ini_tuple = tuple(ini_vec)
     closed_set = set()
     heuristic_set = set()
-    s = 0
     cost_vec = [x * 1.0 for x in cost_vec]
     f_score = {}
     h_score = {}
     g_score = {}
-    a_matrix = np.asmatrix(incidence_matrix.a_matrix).astype(np.float64)
-    h_score[ini_tuple], solution_x = utilities.compute_estimated_heuristic(ini_vec, fin_vec, a_matrix, cost_vec, split_list)
+    enabled_trans = []
+    for trans in t_index:
+        enabled_trans.append(trans)
+    h_score[ini_tuple], solution_x = heuristic.ini_exact_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_lst, t_index)
     g_score[ini_tuple] = 0
     f_score[ini_tuple] = h_score[ini_tuple]
-    ini_state = utilities.State(f_score[ini_tuple], 0, h_score[ini_tuple], None, sync_im, ini_tuple, None, solution_x)
+    ini_state = utilities.State(f_score[ini_tuple], 0, h_score[ini_tuple], None, sync_im, ini_tuple, None,
+                                solution_x, last_sync = None)
     open_set = [ini_state]
     heapq.heapify(open_set)
-    trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
-    visited = 0
     queued = 0
     traversed = 0
+    viz, places_sort_list = visualization.graphviz_visualization(sync_net, image_format="png",
+                                                                 initial_marking=sync_im,
+                                                                 final_marking=sync_fm, current_marking=None)
+    # h1 = ch.test_estimated_heuristic(incidence_matrix,consumption_matrix,place_index,trans_index,sync_net,cost_vec,sync_im,sync_fm)
     # ----------Line 10------------
     while len(open_set) > 0:
         curr = heapq.heappop(open_set)
         current_marking = curr.m
-        curr_vec = incidence_matrix.encode_marking(current_marking)
+        # new_viz = visualization.graphviz_state_change(viz, places_sort_list, current_marking)
+        # new_viz.graph_attr['label'] = "Number of split: " + str(len(split_lst)-1) +"\nTransition in split set: " + \
+        #                               str(split_lst[1:]) +"\nF-score for current state: " + \
+        #                               str(curr.f) + "\nNumber of states visited: " + \
+        #                               str(visited) + "\nNumber of states in open set: " + \
+        #                               str(len(open_set))
+        # visualizer.save(new_viz, os.path.join("E:/Thesis/img", "step" + str(visited) + ".png"))
+        curr_vec = utilities.encode_marking(current_marking, p_index)
         if curr_vec == fin_vec:
             result = utilities.reconstruct_alignment(curr, visited, queued, traversed,
-                                                         ret_tuple_as_trans_desc=ret_tuple_as_trans_desc)
-            print("Optimal alignment:", result["alignment"], "\nCost of optimal alignment：",
-                  result["cost"], "\nNumber of states visited:", result["visited_states"])
+                                                     ret_tuple_as_trans_desc=ret_tuple_as_trans_desc)
+            # new_viz.graph_attr['label'] = "Number of split: " + str(len(split_lst)-1) + "\nTransition in split set: " + \
+            #                               str(split_lst[1:]) + "\nOptimal alignment: " + \
+            #                               str(result["alignment"]) + "\nCost of optimal alignment: " + \
+            #                               str(result["cost"]) + "\nNumber of states visited: " + \
+            #                               str(result["visited_states"])
+            # visualizer.save(new_viz, os.path.join("E:/Thesis/img", "step" + str(visited) + ".png"))
+            print("Optimal alignment:", result["alignment"], "\nCost of optimal alignment:",
+                  result["cost"], "\nNumber of states visited:", result["visited_states"],"\nNumber of split: " + str(len(split_lst)-1) +"\nTransition in split set: " + \
+                                      str(split_lst[1:]) +"\nF-score for final state: " + \
+                                      str(curr.f) + "\nNumber of states visited: "+str(visited))
             return result
-
-        #s which represents the index of the last event explained by the closed markings in set A
         if curr in heuristic_set:
+            if curr.last_sync not in split_lst:
+                split_lst.append(curr.last_sync)
+                return astar_with_split(sync_net, sync_im, sync_fm, consumption_matrix, incidence_matrix, p_index, t_index, cost_function,split_lst,visited)
+            new_heuristic, curr.solution_x = heuristic.curr_exact_heuristic(curr_vec, fin_vec, incidence_matrix, cost_vec)
             heuristic_set.remove(curr)
-            if s not in split_list:
-                split_list.add(s)
-                return astar_with_split(sync_net, sync_im, sync_fm, cost_function, split_list)
-            h_est, x = utilities.compute_estimated_heuristic(curr_vec, fin_vec, a_matrix, cost_vec)
-            if h_est > curr.h:
-                curr.f = curr.g + h_est
+            if new_heuristic > curr.h:
+                curr.f = curr.g + new_heuristic
+                curr.h = new_heuristic
                 continue
-
-        closed_set.add(curr.m)
+        closed_set.add(curr)
         visited += 1
-        s = max(s,incidence_matrix.transitions[curr.t])
-
-
-        # ----------Line 31-48 ----------
         possible_enabling_transitions = set()
         for p in current_marking:
             for t in p.ass_trans:
                 possible_enabling_transitions.add(t)
         enabled_trans = [t for t in possible_enabling_transitions if t.sub_marking <= current_marking]
-        # for t in enabled_trans:
-        #     if curr.t == None:
-        #         break
-        #     if curr.t.label[1] == ">>" and t.label[0] == ">>":
-        #         enabled_trans.remove(t)
-
         for t in enabled_trans:
+            if curr.t is None:
+                break
+            if curr.t.label[0] == ">>" and t.label[1] == ">>":
+                enabled_trans.remove(t)
+        print("enabled_trans",enabled_trans)
+        newlist = sorted(enabled_trans, key=lambda k: k.label)
+        print("newlist",newlist)
+        for t in newlist:
             traversed += 1
             new_marking = utils.add_markings(current_marking, t.add_marking)
-            new_vec = incidence_matrix.encode_marking(new_marking)
+            new_vec = utilities.encode_marking(new_marking, p_index)
             new_tuple = tuple(new_vec)
-            t_index = incidence_matrix.transitions[t]
-            new_h_score, h_trust, new_solution_x = utilities.compute_exact_heuristic(solution_x, cost_vec, t_index)
+            new_h_score, new_solution_x, h_trust = heuristic.estimate_heuristic(curr.h, curr.solution_x, t_index[t], cost_vec)
             if new_tuple not in g_score:
                 g_score[new_tuple] = 100000
             if new_marking not in closed_set:
-                new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x)
+                #用t_index[t]来表示最后的那个index的坐标
+                if t.label[0] != ">>" and t.label[1] != ">>" and (t.label[0] != "a" and t.label[1] != "a"):
+                    # print("new t",t)
+                    new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x, t)
+                else:
+                    new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x, curr.last_sync)
                 if curr.g + cost_function[t] < g_score[new_tuple]:
                     new_state.g = curr.g + cost_function[t]
                     queued += 1
-                    # new_state.h = curr.h - cost_function[t]
-                    if h_trust:
-                        new_state.f = new_state.g + new_h_score
-                    else:
-                        heuristic_set.add(new_state)
-                        new_state.f = new_state.g + curr.h - cost_function[t]
+                    new_state.h = curr.h - cost_function[t]
+                    new_state.f = new_state.g + new_h_score
                     g_score[new_tuple] = new_state.g
                     h_score[new_tuple] = new_state.h
                     f_score[new_tuple] = new_state.f
+                    if not h_trust:
+                        heuristic_set.add(new_state)
                     heapq.heappush(open_set, new_state)
