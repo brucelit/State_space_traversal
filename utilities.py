@@ -3,7 +3,7 @@ from scipy.optimize import linprog
 from pm4py.objects import petri
 from pm4py.objects.petri import utils as petri_utils
 from pm4py.objects.petri.petrinet import PetriNet, Marking
-
+import pulp
 
 def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
     parent = state.p
@@ -21,43 +21,31 @@ def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_
             'traversed_arcs': traversed}
 
 
-def compute_estimated_heuristic(marking_source_vec, marking_destination_vec, inc_matrix, cost_vec):
-    marking_difference = np.asarray(marking_destination_vec) - np.asarray(marking_source_vec)
-    cost_vec = np.asarray(cost_vec)
-    res = linprog(cost_vec, A_eq=inc_matrix, b_eq=marking_difference, method="simplex")
-    if res.success:
-        h_score = np.dot(res.x, cost_vec)
-        h = h_score
-    else:
-        h = 10000
-    return h, res.x
+def compute_estimated_heuristic(marking_source_vec, marking_destination_vec, incidence_matrix, cost_vec):
+    marking_diff = np.array(marking_destination_vec) - np.array(marking_source_vec)
+    prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
+    trans_num = len(cost_vec)
+    place_num = len(marking_destination_vec)
+    var = np.array([pulp.LpVariable(f'x{i}', lowBound=0, cat=pulp.LpInteger) for i in range(trans_num)])
+    prob += pulp.lpDot(cost_vec, var)
+    ct1 = np.dot(incidence_matrix, var)
+    for i in range(place_num):
+        prob += (pulp.lpSum(ct1[i]) == marking_diff[i])
+    prob.solve()
+    dict1 = {'heurstic': pulp.value(prob.objective),
+             'var': [pulp.value(var[i]) for i in range(trans_num)]}
+    return dict1['heurstic'], np.array(dict1['var'])
 
 
-def compute_exact_heuristic(solution_x, cost_vec, trans_index):
+def compute_exact_heuristic(h_score, solution_x, cost_vec, trans_index):
     result_aux = [x * 0 for x in solution_x]
     trust = False
-    if solution_x[trans_index] > 1:
+    if solution_x[trans_index] >= 1:
         trust = True
     result_aux[trans_index] = 1
     result = solution_x - result_aux
-    h_score = np.dot(result, cost_vec)
-    return h_score, trust, result
-
-
-def construct_matrix_with_index(net):
-    p_index, t_index = {}, {}
-    for p in net.places:
-        p_index[p] = len(p_index)
-    for t in net.transitions:
-        t_index[t] = len(t_index)
-    # print(t_index)
-    a_matrix = [[0 for i in range(len(t_index))] for j in range(len(p_index))]
-    for p in net.places:
-        for a in p.in_arcs:
-            a_matrix[p_index[p]][t_index[a.source]] += 1
-        for a in p.out_arcs:
-            a_matrix[p_index[p]][t_index[a.target]] -= 1
-    return a_matrix, p_index, t_index
+    new_h_score = h_score - cost_vec[trans_index]
+    return new_h_score, result, trust
 
 
 def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
@@ -69,55 +57,14 @@ def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
     return ini_vec, fin_vec, cost_vec
 
 
-class ConsumptionMatrix(object):
-
-    def __init__(self, net):
-        self.__A, self.__place_indices, self.__transition_indices = self.__construct_matrix(net)
-
-    def encode_marking(self, marking):
-        x = [0 for i in range(len(self.places))]
-        for p in marking:
-            x[self.places[p]] = marking[p]
-        return x
-
-    def __get_a_matrix(self):
-        return self.__A
-
-    def __get_transition_indices(self):
-        return self.__transition_indices
-
-    def __get_place_indices(self):
-        return self.__place_indices
-
-    def __construct_matrix(self, net):
-        self.matrix_built = True
-        p_index, t_index = {}, {}
-        for p in net.places:
-            p_index[p] = len(p_index)
-        for t in net.transitions:
-            t_index[t] = len(t_index)
-        a_matrix = [[0 for i in range(len(t_index))] for j in range(len(p_index))]
-        for p in net.places:
-            for a in p.out_arcs:
-                a_matrix[p_index[p]][t_index[a.target]] -= 1
-        return a_matrix, p_index, t_index
-
-    a_matrix = property(__get_a_matrix)
-    places = property(__get_place_indices)
-    transitions = property(__get_transition_indices)
-
-    def construct(net):
-        return ConsumptionMatrix(net)
-
-
 def construct_incident_matrix(net):
     p_index, t_index = {}, {}
     for p in net.places:
         p_index[p] = len(p_index)
     for t in net.transitions:
         t_index[t] = len(t_index)
-    p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name)
-    t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name)
+    p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name,reverse=True)
+    t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name,reverse=True)
     new_p_index = dict()
     for i in range(len(p_index_sort)):
         new_p_index[p_index_sort[i][0]] = i
@@ -132,14 +79,15 @@ def construct_incident_matrix(net):
             a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
     return a_matrix, new_p_index, new_t_index
 
+
 def construct_consumption_matrix(net):
     p_index, t_index = {}, {}
     for p in net.places:
         p_index[p] = len(p_index)
     for t in net.transitions:
         t_index[t] = len(t_index)
-    p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name)
-    t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name)
+    p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name,reverse=True)
+    t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name,reverse=True)
     new_p_index = dict()
     for i in range(len(p_index_sort)):
         new_p_index[p_index_sort[i][0]] = i
@@ -166,52 +114,6 @@ def encode_marking(marking, place_index):
     for p in marking:
         x[place_index[p]] = marking[p]
     return x
-
-
-class IncidenceMatrix(object):
-
-    def __init__(self, net):
-        self.__A, self.__place_indices, self.__transition_indices = self.__construct_matrix(net)
-
-    def encode_marking(self, marking):
-        x = [0 for i in range(len(self.places))]
-        for p in marking:
-            x[self.places[p]] = marking[p]
-        return x
-
-    def __get_a_matrix(self):
-        return self.__A
-
-    def __get_transition_indices(self):
-        return self.__transition_indices
-
-    def __get_place_indices(self):
-        return self.__place_indices
-
-    def __construct_matrix(self, net):
-        self.matrix_built = True
-        p_index, t_index = {}, {}
-        for p in net.places:
-            p_index[p] = len(p_index)
-        for t in net.transitions:
-            t_index[t] = len(t_index)
-        a_matrix = [[0 for i in range(len(t_index))] for j in range(len(p_index))]
-        for p in net.places:
-            for a in p.in_arcs:
-                a_matrix[p_index[p]][t_index[a.source]] += 1
-            for a in p.out_arcs:
-                a_matrix[p_index[p]][t_index[a.target]] -= 1
-        return a_matrix, p_index, t_index
-
-
-    a_matrix = property(__get_a_matrix)
-    places = property(__get_place_indices)
-    transitions = property(__get_transition_indices)
-
-
-def construct(net):
-    return IncidenceMatrix(net)
-
 
 
 class State:
@@ -251,6 +153,8 @@ def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_
     result["alignment"] = alignment
     result["cost"] = state.g
     result["visited_states"] = visited
+    result["queued"] =queued
+    result["traversed"] = traversed
     return result
 
 
@@ -267,13 +171,6 @@ def construct_cost_function(sync_net):
     """
     costs = {}
     for t in sync_net.transitions:
-        # if (t.label[0] == '>>' and t.label[1]) and (t.label[0] is not None and t.label[1] is not None):
-        #     costs[t] = STD_MODEL_LOG_MOVE_COST
-        # else:
-        #     if skip == t.label[0] and t.label[1] == 'tao':
-        #         costs[t] = STD_TAU_COST
-        #     else:
-        #         costs[t] =
         if t.label[0] == t.label[1] or (t.label[0] == '>>' and t.label[1] == chr(964)):
             costs[t] = 0
         else:
@@ -432,43 +329,3 @@ def copy_into(source_net, target_net, upper, skip):
             petri_utils.add_arc_from_to(t_map[t], p_map[a.target], target_net)
 
     return t_map, p_map
-
-#
-# def construct_sync_net(pn1, im1, fm1, pn2, im2, fm2, skip):
-#     sync_net = PetriNet('synchronous_product_net of %s and %s' % (pn1.name, pn2.name))
-#     t1_map, p1_map = copy_into(pn1, sync_net, True, skip)
-#     t2_map, p2_map = copy_into(pn2, sync_net, False, skip)
-#     costs = dict()
-#
-#     for t1 in pn1.transitions:
-#         costs[t1_map[t1]] = 1
-#     for t2 in pn2.transitions:
-#         costs[t2_map[t2]] = 1
-#
-#     for t1 in pn1.transitions:
-#         for t2 in pn2.transitions:
-#             if t1.label == t2.label:
-#                 sync = PetriNet.Transition((t1.name, t2.name), (t1.label, t2.label))
-#                 sync_net.transitions.add(sync)
-#                 costs[sync] = sync_costs[(t1, t2)]
-#                 for a in t1.in_arcs:
-#                     add_arc_from_to(p1_map[a.source], sync, sync_net)
-#                 for a in t2.in_arcs:
-#                     add_arc_from_to(p2_map[a.source], sync, sync_net)
-#                 for a in t1.out_arcs:
-#                     add_arc_from_to(sync, p1_map[a.target], sync_net)
-#                 for a in t2.out_arcs:
-#                     add_arc_from_to(sync, p2_map[a.target], sync_net)
-#
-#     sync_im = Marking()
-#     sync_fm = Marking()
-#     for p in im1:
-#         sync_im[p1_map[p]] = im1[p]
-#     for p in im2:
-#         sync_im[p2_map[p]] = im2[p]
-#     for p in fm1:
-#         sync_fm[p1_map[p]] = fm1[p]
-#     for p in fm2:
-#         sync_fm[p2_map[p]] = fm2[p]
-#
-#     return sync_net, sync_im, sync_fm, costs

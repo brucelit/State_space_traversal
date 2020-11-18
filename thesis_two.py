@@ -6,7 +6,7 @@ from pm4py.objects import petri
 from pm4py.objects.petri import align_utils as utils
 
 from astar_implementation import utilities as utilities
-from astar_implementation import heuristic
+from astar_implementation import heuristic,util
 from astar_implementation import visualization
 from pm4py.visualization.petrinet import visualizer
 ret_tuple_as_trans_desc = False
@@ -28,7 +28,7 @@ def astar_with_split(sync_net, sync_im, sync_fm, consumption_matrix, incidence_m
     h_score[ini_tuple], solution_x = heuristic.ini_exact_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_lst, t_index)
     g_score[ini_tuple] = 0
     f_score[ini_tuple] = h_score[ini_tuple]
-    ini_state = utilities.State(f_score[ini_tuple], 0, h_score[ini_tuple], None, sync_im, ini_tuple, None,
+    ini_state = util.State(f_score[ini_tuple], 0, h_score[ini_tuple], None, sync_im, ini_tuple, None,
                                 solution_x, last_sync = None)
     open_set = [ini_state]
     heapq.heapify(open_set)
@@ -66,9 +66,11 @@ def astar_with_split(sync_net, sync_im, sync_fm, consumption_matrix, incidence_m
             return result
         if curr in heuristic_set:
             if curr.last_sync not in split_lst:
+                # print("At step", str(visited), ", add a new split point:", curr.last_sync)
                 split_lst.append(curr.last_sync)
                 return astar_with_split(sync_net, sync_im, sync_fm, consumption_matrix, incidence_matrix, p_index, t_index, cost_function,split_lst,visited)
             new_heuristic, curr.solution_x = heuristic.curr_exact_heuristic(curr_vec, fin_vec, incidence_matrix, cost_vec)
+            # print(curr.h,"new heuristic", new_heuristic)
             heuristic_set.remove(curr)
             if new_heuristic > curr.h:
                 curr.f = curr.g + new_heuristic
@@ -81,37 +83,45 @@ def astar_with_split(sync_net, sync_im, sync_fm, consumption_matrix, incidence_m
             for t in p.ass_trans:
                 possible_enabling_transitions.add(t)
         enabled_trans = [t for t in possible_enabling_transitions if t.sub_marking <= current_marking]
+        violated_trans = []
         for t in enabled_trans:
             if curr.t is None:
                 break
-            if curr.t.label[0] == ">>" and t.label[1] == ">>":
-                enabled_trans.remove(t)
-        print("enabled_trans",enabled_trans)
-        newlist = sorted(enabled_trans, key=lambda k: k.label)
-        print("newlist",newlist)
-        for t in newlist:
+            if curr.t.label[1] == ">>" and t.label[0] == ">>":
+                violated_trans.append(t)
+        for t in violated_trans:
+            enabled_trans.remove(t)
+        enabled_trans = sorted(enabled_trans, key=lambda k: k.label)
+        for t in enabled_trans:
             traversed += 1
             new_marking = utils.add_markings(current_marking, t.add_marking)
             new_vec = utilities.encode_marking(new_marking, p_index)
             new_tuple = tuple(new_vec)
-            new_h_score, new_solution_x, h_trust = heuristic.estimate_heuristic(curr.h, curr.solution_x, t_index[t], cost_vec)
             if new_tuple not in g_score:
                 g_score[new_tuple] = 100000
             if new_marking not in closed_set:
+                new_h_score, new_solution_x, h_trust = heuristic.estimate_heuristic(curr.h, curr.solution_x, t_index[t],
+                                                                                    cost_vec)
                 #用t_index[t]来表示最后的那个index的坐标
                 if t.label[0] != ">>" and t.label[1] != ">>" and (t.label[0] != "a" and t.label[1] != "a"):
                     # print("new t",t)
-                    new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x, t)
+                    new_state = util.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x, t)
                 else:
-                    new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x, curr.last_sync)
-                if curr.g + cost_function[t] < g_score[new_tuple]:
-                    new_state.g = curr.g + cost_function[t]
+                    new_state = util.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x, curr.last_sync)
+                # compute cost so far
+                a = curr.g + cost_function[t]
+                if a < g_score[new_tuple]:
+                    new_state.g = a
                     queued += 1
-                    new_state.h = curr.h - cost_function[t]
-                    new_state.f = new_state.g + new_h_score
+                    if not h_trust:
+                        heuristic_set.add(new_state)
+                        new_state.f = a + curr.h - cost_vec[t_index[t]]
+                    else:
+                        new_state.f = new_state.g + new_h_score
                     g_score[new_tuple] = new_state.g
                     h_score[new_tuple] = new_state.h
                     f_score[new_tuple] = new_state.f
-                    if not h_trust:
-                        heuristic_set.add(new_state)
-                    heapq.heappush(open_set, new_state)
+
+                # Add m' to the open set
+                heapq.heappush(open_set, new_state)
+            print(t, curr.h, new_h_score,h_trust)
