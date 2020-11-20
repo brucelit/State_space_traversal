@@ -29,6 +29,9 @@ def compute_estimated_heuristic(marking_source_vec, marking_destination_vec, inc
     var = np.array([pulp.LpVariable(f'x{i}', lowBound=0, cat=pulp.LpInteger) for i in range(trans_num)])
     prob += pulp.lpDot(cost_vec, var)
     ct1 = np.dot(incidence_matrix, var)
+
+    print("marking diff",marking_diff)
+    print("costs",cost_vec)
     for i in range(place_num):
         prob += (pulp.lpSum(ct1[i]) == marking_diff[i])
     prob.solve()
@@ -138,17 +141,17 @@ class State:
 
 
 def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
-    parent = state.p
+    parent = state.pre_state
     if ret_tuple_as_trans_desc:
-        alignment = [(state.t.name, state.t.label)]
-        while parent.p is not None:
-            alignment = [(parent.t.name, parent.t.label)] + alignment
-            parent = parent.p
+        alignment = [(state.pre_transition.name, state.pre_transition.label)]
+        while parent.pre_state is not None:
+            alignment = [(parent.pre_transition.name, parent.pre_transition.label)] + alignment
+            parent = parent.pre_state
     else:
-        alignment = [state.t.label]
-        while parent.p is not None:
-            alignment = [parent.t.label] + alignment
-            parent = parent.p
+        alignment = [state.pre_transition.label]
+        while parent.pre_state is not None:
+            alignment = [parent.pre_transition.label] + alignment
+            parent = parent.pre_state
     result = {}
     result["alignment"] = alignment
     result["cost"] = state.g
@@ -156,7 +159,6 @@ def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_
     result["queued"] =queued
     result["traversed"] = traversed
     return result
-
 
 
 def construct_cost_function(sync_net):

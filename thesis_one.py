@@ -30,6 +30,7 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
     g_score[ini_tuple] = 0
     f_score[ini_tuple] = h_score[ini_tuple]
     ini_state = utilities.State(f_score[ini_tuple], 0, h_score[ini_tuple], None, sync_im, ini_tuple, None, solution_x)
+    print(h_score[ini_tuple], solution_x)
     open_set = [ini_state]
     heapq.heapify(open_set)
     visited = 0
@@ -75,11 +76,11 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
         for t in enabled_trans:
             if curr.t is None:
                 break
-            if curr.t.label[0] == ">>" and t.label[1] == ">>":
+            if curr.t.label[1] == ">>" and t.label[0] == ">>":
                 violated_trans.append(t)
         for t in violated_trans:
             enabled_trans.remove(t)
-        enabled_trans = sorted(enabled_trans, key=lambda k: k.label,reverse=True)
+        enabled_trans = sorted(enabled_trans, key=lambda k: k.label)
         for t in enabled_trans:
             traversed += 1
             new_marking = utils.add_markings(current_marking, t.add_marking)
@@ -91,7 +92,7 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
             if new_tuple not in g_score:
                 g_score[new_tuple] = 100000
             if new_marking not in closed_set:
-                new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x)
+                new_state = utilities.State(0, 0, 0, new_marking, new_tuple, curr, new_solution_x)
                 if curr.g + cost_function[t] < g_score[new_tuple]:
                     new_state.g = curr.g + cost_function[t]
                     queued += 1
@@ -103,3 +104,4 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
                     if not h_trust:
                         heuristic_set.add(new_state)
                     heapq.heappush(open_set, new_state)
+                    print(new_state.p)
