@@ -23,12 +23,12 @@ def compute_ini_heuristic(ini_vec,fin_vec,cost_vec,incidence_matrix,consumption_
     var = np.array([[pulp.LpVariable(f'x{i}{j}', lowBound=0, cat=pulp.LpInteger)
                     for j in range(trans_num)]
                     for i in range(2*k)])
-    for i in range(0,k):
+    for i in range(0, k):
         temp = split_lst[i]
-        print(temp)
+        # print(temp)
         trans_index = t_index[temp]
-        var[k+i,:] = 0
-        var[k+i][trans_index] = 1
+        var[k + i, :] = 0
+        var[k + i][trans_index] = 1
 
     # add objective定义目标函数
     prob += pulp.lpDot(costs.flatten(), var.flatten())
@@ -73,9 +73,9 @@ def compute_exact_heuristic(marking_source_vec, marking_destination_vec, inc_mat
 
 def compute_estimate_heuristic(h_score, solution_x, t_index, cost_vec):
     result_aux = [0 for x in solution_x]
-    trust = False
+    trust = 1
     if solution_x[t_index] >= 1:
-        trust = True
+        trust = 0
     result_aux[t_index] = 1
     new_solution_x = np.array(solution_x) - np.array(result_aux)
     new_h_score = h_score - cost_vec[t_index]

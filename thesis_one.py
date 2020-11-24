@@ -43,7 +43,7 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
     # ----------Line 10------------
     while len(open_set) > 0:
         curr = heapq.heappop(open_set)
-        current_marking = curr.m
+        current_marking = curr.marking
         # new_viz = visualization.graphviz_state_change(viz, places_sort_list, current_marking)
         # new_viz.graph_attr['label'] = "F-score for current state: "+str(curr.f)+ "\nNumber of states visited: "+str(visited)+"\nNumber of states in open set: "+str(len(open_set))
         # visualizer.save(new_viz, os.path.join("E:/Thesis/img", "step"+str(visited) + ".png"))
@@ -74,9 +74,9 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
         enabled_trans = [t for t in possible_enabling_transitions if t.sub_marking <= current_marking]
         violated_trans = []
         for t in enabled_trans:
-            if curr.t is None:
+            if curr.pre_transition is None:
                 break
-            if curr.t.label[1] == ">>" and t.label[0] == ">>":
+            if curr.pre_transition.label[1] == ">>" and t.label[0] == ">>":
                 violated_trans.append(t)
         for t in violated_trans:
             enabled_trans.remove(t)
@@ -92,7 +92,7 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
             if new_tuple not in g_score:
                 g_score[new_tuple] = 100000
             if new_marking not in closed_set:
-                new_state = utilities.State(0, 0, 0, new_marking, new_tuple, curr, new_solution_x)
+                new_state = utilities.State(0, 0, 0, t, new_marking, new_tuple, curr, new_solution_x)
                 if curr.g + cost_function[t] < g_score[new_tuple]:
                     new_state.g = curr.g + cost_function[t]
                     queued += 1
@@ -104,4 +104,4 @@ def astar(sync_net, sync_im, sync_fm, cost_function):
                     if not h_trust:
                         heuristic_set.add(new_state)
                     heapq.heappush(open_set, new_state)
-                    print(new_state.p)
+                    print(new_state.pre_state)
