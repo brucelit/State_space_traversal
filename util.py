@@ -13,7 +13,7 @@ class State:
         self.last_sync = last_sync
 
     def __lt__(self, other):
-        return (self.trust, self.f, self.g) <(other.trust, other.f, other.g)
+        return (self.trust, self.f, self.g) < (other.trust, other.f, other.g)
 
     # def __lt__(self, other):
     #     if self.trust and not other.trust:
