@@ -27,7 +27,7 @@ def visualize_transition_system(ts):
     return viz
 
 
-def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst):
+def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst, visited, split_lst, open_set):
     for state in ts.states:
         state.label = state.name
     filename = tempfile.NamedTemporaryFile(suffix='.gv')
@@ -54,5 +54,8 @@ def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst):
     viz.attr(overlap='false')
     viz.attr(fontsize='13')
     viz.format = "png"
+    viz.graph_attr['label'] = "\nNumber of states visited: " + str(visited) + "\nsplit list:" + str(
+        split_lst[1:]) + "\nNumber of states in open set: " + str(len(open_set))
+
     # ts_visualizer.save(viz, os.path.join("E:/Thesis/img", "step" + str(order) + ".png"))
     return viz

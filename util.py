@@ -14,10 +14,11 @@ class State:
 
     def __lt__(self, other):
         return (self.f, self.not_trust, other.g) < (other.f, other.not_trust, self.g)
-        #
-        # if self.not_trust < other.not_trust:
+        # if self.f < other.f:
         #     return True
-        # elif self.f < other.f:
+        # elif other.f < self.f:
+        #     return False
+        # elif other.not_trust and not self.not_trust:
         #     return True
         # else:
-        #     return self.g < other.g
+        #     return self.h < other.h

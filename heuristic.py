@@ -8,6 +8,7 @@ def compute_ini_heuristic(ini_vec,fin_vec,cost_vec,incidence_matrix,consumption_
     if k == 0:
         return ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec)
     split_lst = sorted(split_lst[1:], key=lambda k: k.label)
+
     place_num = len(incidence_matrix)
     trans_num = len(incidence_matrix[0])
     marking_diff = np.array(fin_vec) - np.array(ini_vec)
@@ -15,17 +16,6 @@ def compute_ini_heuristic(ini_vec,fin_vec,cost_vec,incidence_matrix,consumption_
     # 1. define problem
     prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
     #
-    # # 2. define decision variable as matrix
-    # var_x_y = pulp.LpVariable.dicts("mu", (range(2 * matrix_row), range(matrix_col)), lowBound=0, cat=pulp.LpInteger)
-    # print(var_x_y)
-    #
-    # # 3. rule 1 in original
-    # for j in range(matrix_row):
-    #     for i in range(col_matrix_x)):
-    #         incidence_matrix[j][i] * matrix_x[i][j]
-    # for j in range(matrix_row):
-    #     m += (pulp.lpSum( == 1)
-    # print("\nmarking diff",marking_diff)
     # 定义变量x_1和y_1放到列表中,用var表示, 0-k-1是y的，k-2k-2是x的
     var = np.array([[pulp.LpVariable(f'x{i}{j}', lowBound=0, cat=pulp.LpInteger)
                     for j in range(trans_num)]
