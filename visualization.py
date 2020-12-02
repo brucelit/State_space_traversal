@@ -35,17 +35,19 @@ def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst):
     viz.attr('node', shape='box', fixedsize='true', width='1', fontsize = '13')
     for s in ts.states:
         if s.name in curr_state:
-            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#1E90FF")
+            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#FFFFFF")
         elif s.name in valide_state_lst:
-            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#228B22")
+            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#1E90FF")
         elif s.name in invalide_state_lst:
             viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#FF0000")
         else:
             pass
     for t in ts.transitions:
-        if t.to_state.name in invalide_state_lst and (t.from_state.name in valide_state_lst or t.from_state.name in curr_state):
+        if t.from_state.name in invalide_state_lst and (t.to_state.name in valide_state_lst or t.to_state.name in invalide_state_lst):
             viz.edge(str(id(t.from_state)), str(id(t.to_state)), label=t.name)
-        elif t.to_state.name in valide_state_lst and (t.from_state.name in valide_state_lst or t.from_state.name in curr_state):
+        elif t.from_state.name in valide_state_lst and (t.to_state.name in valide_state_lst or t.to_state.name in invalide_state_lst):
+            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label=t.name)
+        elif t.from_state.name in curr_state and (t.to_state.name in valide_state_lst or t.to_state.name in invalide_state_lst):
             viz.edge(str(id(t.from_state)), str(id(t.to_state)), label=t.name)
         else:
             pass

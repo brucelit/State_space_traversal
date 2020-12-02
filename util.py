@@ -1,6 +1,6 @@
 class State:
-    def __init__(self, trust, f, g, h, marking, marking_tuple, pre_state, pre_transition, pre_trans_lst, last_sync, parikh_vector):
-        self.trust = trust
+    def __init__(self, not_trust, f, g, h, marking, marking_tuple, pre_state, pre_transition, pre_trans_lst, last_sync, parikh_vector):
+        self.not_trust = not_trust
         self.f = f
         self.g = g
         self.h = h
@@ -13,12 +13,11 @@ class State:
         self.last_sync = last_sync
 
     def __lt__(self, other):
-        return (self.trust, self.f, self.g) < (other.trust, other.f, other.g)
-
-    # def __lt__(self, other):
-    #     if self.trust and not other.trust:
-    #         return True
-    #     elif self.f < other.f:
-    #         return True
-    #     elif other.f < self.f:
-    #         return False
+        return (self.f, self.not_trust, other.g) < (other.f, other.not_trust, self.g)
+        #
+        # if self.not_trust < other.not_trust:
+        #     return True
+        # elif self.f < other.f:
+        #     return True
+        # else:
+        #     return self.g < other.g

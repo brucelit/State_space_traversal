@@ -6,8 +6,8 @@ from pm4py.objects.petri import synchronous_product
 from pm4py.objects.petri.utils import decorate_places_preset_trans, decorate_transitions_prepostset
 from pm4py.objects.petri.petrinet import PetriNet, Marking
 
-log = xes_importer.apply('E:\Thesis\sample_trace.xes')
-model_net, model_im, model_fm = utilities.construct_model_net()
+log = xes_importer.apply('E:\Thesis\sample_trace1.xes')
+model_net, model_im, model_fm = utilities.construct_model_net_without_loop()
 
 print(log[0])
 p1 = state_equation_a_star.Parameters
