@@ -54,8 +54,8 @@ def compute_ini_heuristic(ini_vec,fin_vec,cost_vec,incidence_matrix,consumption_
             prob += (pulp.lpSum(ct3[i]) >= -ini_vec[i])
     prob.solve()
     print("计算结果：", pulp.value(prob.objective))
-    dict1 = {'heurstic': pulp.value(prob.objective),
-            'var': [[pulp.value(var[i][j]) for j in range(trans_num)] for i in range(k*2)]}
+    dict1 = {'heurstic': int(pulp.value(prob.objective)),
+            'var': [[int(pulp.value(var[i][j])) for j in range(trans_num)] for i in range(k*2)]}
     # print([[pulp.value(var[i][j]) for j in range(trans_num)] for i in range(k*2)])
     # print("!!!solution vector:", np.array(dict1['var']).sum(axis=0))
     # print("var",dict1['var'])
@@ -76,8 +76,8 @@ def ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec):
     for i in range(place_num):
         prob += (pulp.lpSum(ct1[i]) == marking_diff[i])
     prob.solve()
-    dict1 = {'heuristic': pulp.value(prob.objective),
-             'var': [pulp.value(var[i]) for i in range(trans_num)]}
+    dict1 = {'heuristic': int(pulp.value(prob.objective)),
+             'var': [int(pulp.value(var[i])) for i in range(trans_num)]}
     print("init h when no split point",dict1["heuristic"])
     print("solution vector when no split point:", [pulp.value(var[i]) for i in range(trans_num)])
     return dict1['heuristic'], np.array(dict1['var'])
@@ -93,8 +93,8 @@ def compute_exact_heuristic(ini_vec, fin_vec, inc_matrix, cost_vec):
     for i in range(len(ini_vec)):
         prob += (pulp.lpSum(var1[i]) == marking_diff[i])
     prob.solve()
-    dict1 = {'heurstic': pulp.value(prob.objective),
-             'var': [pulp.value(var[i]) for i in range(len(cost_vec))]}
+    dict1 = {'heurstic': int(pulp.value(prob.objective)),
+             'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
     print("compute exact heuristic", dict1['var'], dict1['heurstic'])
     return dict1['heurstic'], dict1['var']
 

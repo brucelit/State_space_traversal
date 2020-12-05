@@ -6,20 +6,14 @@ from pm4py.objects.petri.petrinet import PetriNet, Marking
 import pulp
 from pm4py.visualization.petrinet import visualizer
 
-def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
-    parent = state.p
-    if ret_tuple_as_trans_desc:
-        alignment = [(state.t.name, state.t.label)]
-        while parent.p is not None:
-            alignment = [(parent.t.name, parent.t.label)] + alignment
-            parent = parent.p
-    else:
-        alignment = [state.t.label]
-        while parent.p is not None:
-            alignment = [parent.t.label] + alignment
-            parent = parent.p
-    return {'alignment': alignment, 'cost': state.g, 'visited_states': visited, 'queued_states': queued,
-            'traversed_arcs': traversed}
+
+def vectorize_initial_final_cost(ini, fin, place_index, trans_index, cost_function):
+    ini_vec = encode_marking(ini, place_index)
+    fini_vec = encode_marking(fin, place_index)
+    cost_vec = [0] * len(cost_function)
+    for t in cost_function.keys():
+        cost_vec[trans_index[t]] = cost_function[t]
+    return ini_vec, fini_vec, cost_vec
 
 
 def compute_estimated_heuristic(marking_source_vec, marking_destination_vec, incidence_matrix, cost_vec):
@@ -50,15 +44,6 @@ def compute_exact_heuristic(h_score, solution_x, cost_vec, trans_index):
     result = solution_x - result_aux
     new_h_score = h_score - cost_vec[trans_index]
     return new_h_score, result, trust
-
-
-def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
-    ini_vec = incidence_matrix.encode_marking(ini)
-    fin_vec = incidence_matrix.encode_marking(fin)
-    cost_vec = [0] * len(cost_function)
-    for t in cost_function.keys():
-        cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
-    return ini_vec, fin_vec, cost_vec
 
 
 def construct_incident_matrix(net):
@@ -104,14 +89,6 @@ def construct_consumption_matrix(net):
             a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
     return a_matrix
 
-def vectorize_initial_final_cost(place_index, trans_index, ini, fin, cost_function):
-    ini_vec = encode_marking(ini, place_index)
-    fini_vec = encode_marking(fin, place_index)
-    cost_vec = [0] * len(cost_function)
-    for t in cost_function.keys():
-        cost_vec[trans_index[t]] = cost_function[t]
-    return ini_vec, fini_vec, cost_vec
-
 
 def encode_marking(marking, place_index):
     x = [0 for i in range(len(place_index))]
@@ -120,45 +97,7 @@ def encode_marking(marking, place_index):
     return x
 
 
-class State:
-    def __init__(self, f, g, h,pre_transition, marking, marking_tuple, pre_state, solution_x):
-        self.f = f
-        self.g = g
-        self.h = h
-        self.pre_transition = pre_transition
-        self.marking = marking
-        self.marking_tuple = marking_tuple
-        self.pre_state = pre_state
-        self.solution_x = solution_x
 
-    def __lt__(self, other):
-        if self.f < other.f:
-            return True
-        elif self.g < other.g:
-            return True
-        else:
-            return self.h < other.h
-
-
-def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
-    parent = state.pre_state
-    if ret_tuple_as_trans_desc:
-        alignment = [(state.pre_transition.name, state.pre_transition.label)]
-        while parent.pre_state is not None:
-            alignment = [(parent.pre_transition.name, parent.pre_transition.label)] + alignment
-            parent = parent.pre_state
-    else:
-        alignment = [state.pre_transition.label]
-        while parent.pre_state is not None:
-            alignment = [parent.pre_transition.label] + alignment
-            parent = parent.pre_state
-    result = {}
-    result["alignment"] = alignment
-    result["cost"] = state.g
-    result["visited_states"] = visited
-    result["queued"] =queued
-    result["traversed"] = traversed
-    return result
 
 
 def construct_cost_function(sync_net):
@@ -250,8 +189,8 @@ def construct_model_net_without_loop():
     model_im[p1] = 1
     model_fm = Marking()
     model_fm[p7] = 1
-    gviz = visualizer.apply(model_net, model_im, model_fm)
-    visualizer.view(gviz)
+    # gviz = visualizer.apply(model_net, model_im, model_fm)
+    # visualizer.view(gviz)
     return model_net, model_im, model_fm
 
 
@@ -321,8 +260,8 @@ def construct_model_net():
     model_im[p1] = 1
     model_fm = Marking()
     model_fm[p7] = 1
-    gviz = visualizer.apply(model_net, model_im, model_fm)
-    visualizer.view(gviz)
+    # gviz = visualizer.apply(model_net, model_im, model_fm)
+    # visualizer.view(gviz)
     return model_net, model_im, model_fm
 
 
@@ -380,8 +319,8 @@ def construct_trace_net_without_loop():
     trace_fm = Marking()
     trace_fm[p7] = 1
 
-    gviz2 = visualizer.apply(trace_net, trace_im, trace_fm)
-    visualizer.view(gviz2)
+    # gviz2 = visualizer.apply(trace_net, trace_im, trace_fm)
+    # visualizer.view(gviz2)
     return trace_net, trace_im, trace_fm
 
 
@@ -459,3 +398,20 @@ def copy_into(source_net, target_net, upper, skip):
             petri_utils.add_arc_from_to(t_map[t], p_map[a.target], target_net)
 
     return t_map, p_map
+
+
+def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
+    parent = state.pre_state
+    if ret_tuple_as_trans_desc:
+        alignment = [(state.pre_transition.name, state.pre_transition.label)]
+        while parent.pre_state is not None:
+            alignment = [(parent.pre_transition.name, parent.pre_transition.label)] + alignment
+            parent = parent.pre_state
+    else:
+        alignment = [state.pre_transition.label]
+        while parent.pre_state is not None:
+            alignment = [parent.pre_transition.label] + alignment
+            parent = parent.pre_state
+    result = {"alignment": alignment, "cost": state.g, "visited_states": visited, "queued": queued,
+              "traversed": traversed}
+    return result
