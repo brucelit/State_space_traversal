@@ -3,9 +3,9 @@ import heapq
 
 from pm4py.objects.petri import align_utils as utils
 
-from astar_implementation import heuristic, util
+from astar_implementation import heuristic
 from astar_implementation import utilities as utilities
-from astar_implementation import visualization
+from astar_implementation import visualization, initialization
 
 ret_tuple_as_trans_desc = False
 
@@ -16,15 +16,12 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
     # Line 1-10
     ------------
      """
-    ini_vec, fin_vec, cost_vec = utilities.vectorize_initial_final_cost(sync_im, sync_fm,
-                                                                        aux_dict['p_index'], aux_dict['t_index'],
-                                                                        aux_dict['cost_function'])
+
     closed_set = set()  # init close set
     heuristic_set = set()  # init estimated heuristic set
-    closed_set2 = set()
 
     #  initial state
-    ini_state = init_state(sync_im, ini_vec, fin_vec, cost_vec, split_lst,
+    ini_state = init_state(sync_im, split_lst, aux_dict['ini_vec'], aux_dict['fin_vec'], aux_dict['cost_vec'],
                            aux_dict['incidence_matrix'], aux_dict['consumption_matrix'], aux_dict['t_index'])
     open_set = []
     heapq.heapify(open_set)
@@ -34,9 +31,7 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
     new_split_point = None
     max_num = 0
 
-    # matrice for measurement
-    queued = 0
-    traversed = 0
+    # matrices for measurement
     valid_state_lst = set()
     invalid_state_lst = set()
 
@@ -95,9 +90,9 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                                               aux_dict['visited'], split_lst, open_set)
         # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/acegcd", "step" + str(order) + ".png"))
 
-        curr_vec = utilities.encode_marking(curr.marking, aux_dict['p_index'])
-        if curr_vec == fin_vec:
-            result = print_result(curr, aux_dict['visited'], queued, traversed, split_lst)
+        curr_vec = initialization.encode_marking(curr.marking, aux_dict['p_index'])
+        if curr_vec == aux_dict['fin_vec']:
+            result = print_result(curr, aux_dict['visited'], aux_dict['queued'], aux_dict['traversed'], split_lst)
             return result
 
         if curr.marking_tuple in heuristic_set:
@@ -118,8 +113,8 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                         print("trans list index", j)
                 return astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
 
-            new_heuristic, new_parikh_vector = heuristic.compute_exact_heuristic(curr_vec, fin_vec,
-                                                                                 aux_dict['incidence_matrix'], cost_vec)
+            new_heuristic, new_parikh_vector = heuristic.compute_exact_heuristic(curr_vec, aux_dict['fin_vec'],
+                                                                                 aux_dict['incidence_matrix'], aux_dict['cost_vec'])
             heuristic_set.remove(curr.marking_tuple)
             old_h = curr.h
             curr.not_trust = 0
@@ -139,9 +134,7 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                 continue
         # add marking to closed set
         closed_set.add(curr.marking_tuple)
-        closed_set2.add(curr.marking)
         # keep track of the maximum number of events explained
-        print("closed set", closed_set2)
         new_max_num = max_events_explained(curr, aux_dict['sync_trans'])
         if new_max_num > max_num:
             max_num = new_max_num
@@ -157,15 +150,15 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
 
         for t in enabled_trans:
             new_marking = utils.add_markings(curr.marking, t.add_marking)
-            new_tuple = tuple(utilities.encode_marking(new_marking, aux_dict['p_index']))
+            new_tuple = tuple(initialization.encode_marking(new_marking, aux_dict['p_index']))
             # reach a marking not yet visited
             if new_tuple not in dict_g:
                 dict_g[new_tuple] = 10000
             if new_tuple not in closed_set:
-                traversed += 1
+                aux_dict['traversed'] += 1
                 # create new state
                 not_trust, new_heuristic, new_parikh_vector, a, t, new_pre_trans_lst, last_sync = \
-                    compute_new_state_test(curr, cost_vec, t, aux_dict['t_index'])
+                    compute_new_state_test(curr, aux_dict['cost_vec'], t, aux_dict['t_index'])
                 if new_tuple not in state_path:
                     state_path[new_tuple] = new_pre_trans_lst
                 else:
@@ -177,12 +170,12 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                 if a <= dict_g[new_tuple]:
                     g = a
                     if not_trust == 1:
-                        f = g + max(0, curr.h - cost_vec[aux_dict['t_index'][t]])
+                        f = g + max(0, curr.h - aux_dict['cost_vec'][aux_dict['t_index'][t]])
                         h = new_heuristic
                     else:
                         f = g + new_heuristic
                         h = new_heuristic
-                    new_state = util.State(not_trust, f, g, h, new_marking, new_tuple, curr, t, new_pre_trans_lst,
+                    new_state = State(not_trust, f, g, h, new_marking, new_tuple, curr, t, new_pre_trans_lst,
                                            last_sync, new_parikh_vector)
                     lst2 = marking_to_list(new_marking, aux_dict['place_map'])
                     if not_trust == 0:
@@ -205,18 +198,16 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                         if f < i.f and not not_trust:
                             print("success remove", i.marking)
                             open_set.remove(i)
-                            queued -= 1
                             heapq.heapify(open_set)
                         elif f == i.f and i.not_trust and not not_trust:
                             print("success remove", i.marking)
                             open_set.remove(i)
-                            queued -= 1
                             heapq.heapify(open_set)
                         else:
                             flag = 0
                 if flag == 1:
                     heapq.heappush(open_set, new_state)
-                    queued += 1
+                    aux_dict['queued'] += 1
 
         gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
                                               aux_dict['visited'],
@@ -257,7 +248,7 @@ def max_events_explained(curr, sync_trans):
     return max_count
 
 
-def init_state(sync_im, ini_vec, fin_vec, cost_vec, split_lst, incidence_matrix, consumption_matrix, t_index):
+def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, t_index):
     ini_h, ini_parikh_vector = heuristic.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                                                                consumption_matrix, split_lst, t_index)
     ini_tuple = tuple(ini_vec)
@@ -267,7 +258,7 @@ def init_state(sync_im, ini_vec, fin_vec, cost_vec, split_lst, incidence_matrix,
     print("solution vector:", ini_parikh_vector)
     # not_trust equal to 0 means the solution vector is known.
     not_trust = 0
-    return util.State(not_trust, ini_f, 0, ini_h, sync_im, ini_tuple, None, None, pre_trans_lst, None,
+    return State(not_trust, ini_f, 0, ini_h, sync_im, ini_tuple, None, None, pre_trans_lst, None,
                       ini_parikh_vector)
 
 
@@ -279,11 +270,7 @@ def compute_new_state_test(curr, cost_vec, t, t_index):
         i.append(index_to_add)
     new_h_score, new_parikh_vector, not_trust = heuristic.compute_estimate_heuristic(curr.h, curr.parikh_vector,
                                                                                      t_index[t], cost_vec)
-    # print("current marking", curr.marking)
-    # print("solution vector for curr:", curr.parikh_vector)
-    # print("current g", curr.g)
-    # print("new marking", new_marking)
-    # print("new solution vector:", new_parikh_vector)
+
     if t is not None and (t.label[0] == t.label[1]):
         last_sync = t
     else:
@@ -329,3 +316,28 @@ def print_result(state, visited, queued, traversed, split_lst):
           "\nNumber of states queued: " + str(queued) + \
           "\nNumber of edges traversed: " + str(traversed))
     return result
+
+
+class State:
+    def __init__(self, not_trust, f, g, h, marking, marking_tuple, pre_state, pre_transition, pre_trans_lst, last_sync,
+                 parikh_vector):
+        self.not_trust = not_trust
+        self.f = f
+        self.g = g
+        self.h = h
+        self.pre_transition = pre_transition
+        self.marking = marking
+        self.marking_tuple = marking_tuple
+        self.parikh_vector = parikh_vector
+        self.pre_trans_lst = pre_trans_lst
+        self.pre_state = pre_state
+        self.last_sync = last_sync
+
+    def __lt__(self, other):
+        return (self.f, self.not_trust, other.g) < (other.f, other.not_trust, self.g)
+
+    def __gt__(self, other):
+        return (self.f, self.not_trust, other.g) > (other.f, other.not_trust, self.g)
+
+    def __eq__(self, other):
+        return (self.f, self.not_trust, self.g) == (other.f, other.not_trust, other.g)

@@ -1,19 +1,6 @@
 import tempfile
-import tempfile
-from copy import copy
-import os
 
 from graphviz import Digraph
-from pm4py.util import exec_utils
-from pm4py.visualization.transition_system.parameters import Parameters
-from graphviz import Digraph
-from copy import copy
-
-from pm4py.objects.petri.petrinet import Marking
-from pm4py.util import exec_utils
-from enum import Enum
-from pm4py.visualization.petrinet.parameters import Parameters
-from pm4py.visualization.transition_system import visualizer as ts_visualizer
 
 
 def visualize_transition_system(ts):
@@ -56,6 +43,4 @@ def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst, visit
     viz.format = "png"
     viz.graph_attr['label'] = "\nNumber of states visited: " + str(visited) + "\nsplit list:" + str(
         split_lst[1:]) + "\nNumber of states in open set: " + str(len(open_set))
-
-    # ts_visualizer.save(viz, os.path.join("E:/Thesis/img", "step" + str(order) + ".png"))
     return viz
