@@ -1,10 +1,12 @@
 import copy
 import heapq
+import os
 
 from pm4py.objects.petri import align_utils as utils
+from pm4py.visualization.transition_system import visualizer as ts_visualizer
 
 from astar_implementation import heuristic
-from astar_implementation import utilities as utilities
+from astar_implementation import construction as utilities
 from astar_implementation import visualization, initialization
 
 ret_tuple_as_trans_desc = False
@@ -47,9 +49,7 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
     print("after checking:")
     changed_state, valid_path = check_state(aux_dict['state_to_check'], ini_state.parikh_vector)
     for i in changed_state:
-        print(i.marking)
-    for j in valid_path:
-        print(j)
+        print(i.marking, i.not_trust)
 
     '''
     ------------------
@@ -68,12 +68,12 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
         #  favouring markings for which the exact heuristic is known.
         curr = heapq.heappop(open_set)
 
-        print("\ncurrent marking", curr.marking)
+        # print("\ncurrent marking", curr.marking)
         # print("current not trust", curr.not_trust)
         # print("current f,g,h", curr.f, curr.g, curr.h)
         # print("current parikh", curr.parikh_vector)
-        if curr.marking_tuple in heuristic_set:
-            print("Its in heuristic set")
+        # if curr.marking_tuple in heuristic_set:
+            # print("Its in heuristic set")
         # current_marking = copy.deepcopy(curr.marking)
         # tranform places in current state to list in form p1,p2,p3…
         curr_state_lst = [marking_to_list(curr.marking, aux_dict['place_map'])]
@@ -86,9 +86,9 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
         if curr.not_trust == 1 and lst2 not in valid_state_lst and lst2 not in invalid_state_lst:
             invalid_state_lst.add(lst2)
         # visualize and save change
-        gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
-                                              aux_dict['visited'], split_lst, open_set)
-        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/acegcd", "step" + str(order) + ".png"))
+        # gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
+        #                                       aux_dict['visited'], split_lst, open_set)
+        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/aeddeceh", "step" + str(aux_dict['order']) + ".png"))
 
         curr_vec = initialization.encode_marking(curr.marking, aux_dict['p_index'])
         if curr_vec == aux_dict['fin_vec']:
@@ -96,21 +96,22 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
             return result
 
         if curr.marking_tuple in heuristic_set:
-            print("find in heuristic set")
+            # print("find in heuristic set")
             # print("solution vector",curr.parikh_vector)
             if new_split_point not in split_lst:
-                print("order", aux_dict['order'], "new split point", new_split_point, "max num:", max_num)
-                split_lst.append(new_split_point)
+                # print("order", aux_dict['order'], "new split point", new_split_point, "max num:", max_num)
+                split_lst[new_split_point] = max_num
+                print("update split list", split_lst)
                 heapq.heappush(open_set, curr)
-                state_to_check = []
+                aux_dict['state_to_check']= []
                 for i in open_set:
                     if i.not_trust == 1:
-                        state_to_check.append(i)
-                        print(i.marking, i.pre_trans_lst)
-                print("test part:")
-                for i in state_to_check:
-                    for j in i.pre_trans_lst:
-                        print("trans list index", j)
+                        aux_dict['state_to_check'].append(i)
+                        # print(i.marking, i.pre_trans_lst)
+                # print("test part:")
+                # for i in state_to_check:
+                #     for j in i.pre_trans_lst:
+                        # print("trans list index", j)
                 return astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
 
             new_heuristic, new_parikh_vector = heuristic.compute_exact_heuristic(curr_vec, aux_dict['fin_vec'],
@@ -139,7 +140,8 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
         if new_max_num > max_num:
             max_num = new_max_num
             new_split_point = curr.last_sync
-            print("new split:", new_split_point, aux_dict['t_index'][new_split_point])
+            print("last sync", curr.last_sync, "max num:", new_max_num)
+            # print("new split:", new_split_point, aux_dict['t_index'][new_split_point])
         '''
         -------------
         # Line 31-end  
@@ -164,8 +166,8 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                 else:
                     for i in new_pre_trans_lst:
                         state_path[new_tuple].append(i)
-                print("new marking:", new_marking)
-                print("path for new state", state_path[new_tuple])
+                # print("new marking:", new_marking)
+                # print("path for new state", state_path[new_tuple])
 
                 if a <= dict_g[new_tuple]:
                     g = a
@@ -180,7 +182,7 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                     lst2 = marking_to_list(new_marking, aux_dict['place_map'])
                     if not_trust == 0:
                         if lst2 in invalid_state_lst:
-                            print("yes, remove!!!")
+                            # print("yes, remove!!!")
                             invalid_state_lst.remove(lst2)
                             heuristic_set.remove(new_state.marking_tuple)
                         valid_state_lst.add(lst2)
@@ -196,11 +198,11 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                 for i in open_set:
                     if i.marking_tuple == new_tuple:
                         if f < i.f and not not_trust:
-                            print("success remove", i.marking)
+                            # print("success remove", i.marking)
                             open_set.remove(i)
                             heapq.heapify(open_set)
                         elif f == i.f and i.not_trust and not not_trust:
-                            print("success remove", i.marking)
+                            # print("success remove", i.marking)
                             open_set.remove(i)
                             heapq.heapify(open_set)
                         else:
@@ -212,10 +214,10 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
         gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
                                               aux_dict['visited'],
                                               split_lst, open_set)
-        print("\nNumber of states visited: " + str(aux_dict['visited']) + "\nsplit list:" + str(
-            split_lst[1:]) + "\nNumber of states in open set: " + str(len(open_set)) +
-              "\nvalid state: ", valid_state_lst, "\ninvalid state", invalid_state_lst)
-        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/acegcd", "step" + str(order) + ".png"))
+        # print("\nNumber of states visited: " + str(aux_dict['visited']) + "\nsplit list:" + str(
+        #     split_lst) + "\nNumber of states in open set: " + str(len(open_set)) +
+        #       "\nvalid state: ", valid_state_lst, "\ninvalid state", invalid_state_lst)
+        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/aeddeceh", "step" + str(aux_dict['order']) + ".png"))
 
 
 def check_state(state_to_check, ini_parikh_vector):
@@ -224,7 +226,6 @@ def check_state(state_to_check, ini_parikh_vector):
     for state in state_to_check:
         for path in state.pre_trans_lst:
             temp_not_trust = 0
-            print(path)
             for trans in path:
                 if ini_parikh_vector[trans] < 1:
                     temp_not_trust = 1
@@ -237,13 +238,14 @@ def check_state(state_to_check, ini_parikh_vector):
 
 def max_events_explained(curr, sync_trans):
     max_count = 0
-    count = 0
     # get the split point
     for lst in curr.pre_trans_lst:
+        count = 0
         for i in lst:
             if i in sync_trans:
                 count += 1
         if count > max_count:
+            print("over count:", lst)
             max_count = count
     return max_count
 
@@ -307,14 +309,31 @@ def compute_enabled_transition(state):
 
 
 def print_result(state, visited, queued, traversed, split_lst):
-    result = utilities.reconstruct_alignment(state, visited, queued, traversed, False)
+    result = reconstruct_alignment(state, visited, queued, traversed, False)
     print("Optimal alignment:", result["alignment"], "\nCost of optimal alignment:",
           result["cost"], "\nNumber of states visited:", result["visited_states"],
           "\nNumber of split: " + str(len(split_lst) - 1) + "\nTransition in split set: " + \
-          str(split_lst[1:]) + "\nF-score for final state: " + \
+          str(split_lst) + "\nF-score for final state: " + \
           str(state.f) + "\nNumber of states visited: " + str(visited) + \
           "\nNumber of states queued: " + str(queued) + \
           "\nNumber of edges traversed: " + str(traversed))
+    return result
+
+
+def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
+    parent = state.pre_state
+    if ret_tuple_as_trans_desc:
+        alignment = [(state.pre_transition.name, state.pre_transition.label)]
+        while parent.pre_state is not None:
+            alignment = [(parent.pre_transition.name, parent.pre_transition.label)] + alignment
+            parent = parent.pre_state
+    else:
+        alignment = [state.pre_transition.label]
+        while parent.pre_state is not None:
+            alignment = [parent.pre_transition.label] + alignment
+            parent = parent.pre_state
+    result = {"alignment": alignment, "cost": state.g, "visited_states": visited, "queued": queued,
+              "traversed": traversed}
     return result
 
 
@@ -333,11 +352,20 @@ class State:
         self.pre_state = pre_state
         self.last_sync = last_sync
 
+
+    # def __lt__(self, other):
+    #     return (self.not_trust, self.f, other.g) < (other.not_trust, other.f, self.g)
+    #
+    # def __gt__(self, other):
+    #     return (other.not_trust, self.f, other.g) > (other.not_trust, other.f, self.g)
+    #
+    # def __eq__(self, other):
+    #     return (self.f, self.not_trust, self.g) == (other.f, other.not_trust, other.g)
     def __lt__(self, other):
         return (self.f, self.not_trust, other.g) < (other.f, other.not_trust, self.g)
 
     def __gt__(self, other):
-        return (self.f, self.not_trust, other.g) > (other.f, other.not_trust, self.g)
+        return (self.f, other.not_trust, other.g) > (other.f, other.not_trust, self.g)
 
     def __eq__(self, other):
         return (self.f, self.not_trust, self.g) == (other.f, other.not_trust, other.g)

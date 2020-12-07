@@ -22,14 +22,17 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm):
     for k, v in t_index.items():
         if k.label[0] == k.label[1]:
             sync_trans.append(v)
-    print(sync_trans)
+    trace_trans = []
+    for k, v in t_index.items():
+        if k.label[1] == ">>":
+            trace_trans.append(v)
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_im, sync_fm, p_index, t_index,
                                                               cost_function)
     aux_dict = {'t_index': t_index, 'p_index': p_index, 'incidence_matrix': incidence_matrix,
                 'consumption_matrix': consumption_matrix, 'place_map': place_map, 'cost_function': cost_function,
                 'visited': 0, 'order': 0, 'transition_system': ts, 'sync_trans': sync_trans, 'state_to_check': [],
                 'ts': ts, 'ini_vec': ini_vec, 'fin_vec': fin_vec, 'cost_vec': cost_vec, 'traversed': 0, 'queued': 0,
-                }
+                'trace_trans': trace_trans}
     return aux_dict
 
 

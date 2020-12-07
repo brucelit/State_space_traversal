@@ -2,12 +2,15 @@ import pulp
 import numpy as np
 
 
-def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_lst, t_index):
-    k = len(split_lst) - 1
+def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_dict, t_index):
+    k = len(split_dict) - 1
     if k == 0:
         return ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec)
-    split_lst = sorted(split_lst[1:], key=lambda k: k.label)
-
+    # split_lst = sorted(split_lst[1:], key=lambda k: k.label)
+    print("check split dict: ", split_dict)
+    split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
+    split_lst = list(split_dict.keys())[1:]
+    print("check split list", split_lst)
     place_num = len(incidence_matrix)
     trans_num = len(incidence_matrix[0])
     marking_diff = np.array(fin_vec) - np.array(ini_vec)
@@ -45,9 +48,12 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumpt
         ct3 = np.dot(incidence_matrix, var2) + np.dot(consumption_matrix, var[a + k])
         for i in range(place_num):
             prob += (pulp.lpSum(ct3[i]) >= -ini_vec[i])
+
     prob.solve()
+    print("status", pulp.LpStatus[prob.status])
     dict1 = {'heuristic': int(pulp.value(prob.objective)),
              'var': [[int(pulp.value(var[i][j])) for j in range(trans_num)] for i in range(k * 2)]}
+    print("compute heuristic", dict1['var'])
     return dict1['heuristic'], np.array(dict1['var']).sum(axis=0)
 
 

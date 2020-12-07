@@ -41,6 +41,6 @@ def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst, visit
     viz.attr(overlap='false')
     viz.attr(fontsize='13')
     viz.format = "png"
-    viz.graph_attr['label'] = "\nNumber of states visited: " + str(visited) + "\nsplit list:" + str(
-        split_lst[1:]) + "\nNumber of states in open set: " + str(len(open_set))
+    viz.graph_attr['label'] = "\nNumber of states visited: " + str(visited) + "\nsplit list:" + \
+                              str(split_lst.keys()) + "\nNumber of states in open set: " + str(len(open_set))
     return viz
