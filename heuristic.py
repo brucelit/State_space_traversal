@@ -2,59 +2,74 @@ import pulp
 import numpy as np
 
 
-def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_dict, t_index):
+def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_dict, x_0, t_index):
     k = len(split_dict) - 1
+    print("\ncurrent split:", k)
+
     if k == 0:
         return ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec)
-    # split_lst = sorted(split_lst[1:], key=lambda k: k.label)
-    print("check split dict: ", split_dict)
     split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
     split_lst = list(split_dict.keys())[1:]
-    print("check split list", split_lst)
+    print("current split point:", split_lst)
+    # print("check split list", split_lst)
     place_num = len(incidence_matrix)
     trans_num = len(incidence_matrix[0])
-    marking_diff = np.array(fin_vec) - np.array(ini_vec)
-
     # define problem
     prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
 
-    # define x_i and y_j, 0 to k-1 is for x_i, k to 2k-1 is for y
+    # define x_i from x_1 to x_k
     var = np.array([[pulp.LpVariable(f'x{i}{j}', lowBound=0, cat=pulp.LpInteger)
                      for j in range(trans_num)]
-                    for i in range(2 * k)])
+                    for i in range(k)])
     costs = np.array([cost_vec for i in range(k)])
 
     # add objective
     prob += pulp.lpDot(costs.flatten(), var[0:k].flatten())
 
+    var_y = np.zeros((k, trans_num))
     for i in range(0, k):
         temp = split_lst[i]
-        # print(temp)
         trans_index = t_index[temp]
-        var[k + i, :] = 0
-        var[k + i][trans_index] = 1
+        var_y[i][trans_index] = 1
+
+    print("x_0: ", x_0)
+    print("y:", var_y)
 
     # constraint 1
+    marking_diff = np.array(fin_vec) - np.array(ini_vec) - np.dot(incidence_matrix, x_0) \
+                   - np.dot(incidence_matrix, var_y.sum(axis=0))
     var1 = np.array(var).sum(axis=0)
+    print("var1:", var1)
     ct1 = np.dot(incidence_matrix, var1)
     for i in range(place_num):
         prob += (pulp.lpSum(ct1[i]) == marking_diff[i])
 
     # constraint 2
     for a in range(0, k):
-        var2 = np.array([0 for i in range(trans_num)])
+        cons_two = np.array(ini_vec) + np.dot(incidence_matrix, x_0) + np.dot(consumption_matrix, var_y[a])
+        print("cons_two:", cons_two)
+        print("round: ", a)
+        var2 = np.array([0 for i in cost_vec])
         for b in range(0, a):
-            var2 = var2 + var[b] + var[b + k]
-        ct3 = np.dot(incidence_matrix, var2) + np.dot(consumption_matrix, var[a + k])
+            var2 = var2 + var[b]+var_y[b]
+            print("var2 define:\n", var2)
+        ct2 = np.dot(incidence_matrix, var2)
+        print("ct2 define:\n", ct2)
         for i in range(place_num):
-            prob += (pulp.lpSum(ct3[i]) >= -ini_vec[i])
-
+            prob += (pulp.lpSum(ct2[i]) >= -cons_two[i])
     prob.solve()
-    print("status", pulp.LpStatus[prob.status])
+
     dict1 = {'heuristic': int(pulp.value(prob.objective)),
-             'var': [[int(pulp.value(var[i][j])) for j in range(trans_num)] for i in range(k * 2)]}
-    print("compute heuristic", dict1['var'])
-    return dict1['heuristic'], np.array(dict1['var']).sum(axis=0)
+             'var': [[int(pulp.value(var[i][j])) for j in range(trans_num)] for i in range(k)]}
+    print("var:\n", var)
+    print("status", pulp.LpStatus[prob.status])
+
+    print("heuristic computed1: ", dict1['heuristic'])
+    print("heuristic computed2: ", dict1['heuristic'] + np.dot(np.transpose(cost_vec), x_0))
+    print("solution vector1", np.array(dict1['var']).sum(axis=0))
+    print("solution vector2", np.array(dict1['var']).sum(axis=0) + x_0)
+    print("solution var:", np.array(dict1['var']))
+    return dict1['heuristic'], np.array(dict1['var']).sum(axis=0) + x_0
 
 
 def ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec):
@@ -68,10 +83,10 @@ def ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec):
     for i in range(place_num):
         prob += (pulp.lpSum(ct1[i]) == marking_diff[i])
     prob.solve()
+    print("initial status", pulp.LpStatus[prob.status])
     dict1 = {'heuristic': int(pulp.value(prob.objective)),
              'var': [int(pulp.value(var[i])) for i in range(trans_num)]}
-    print("init h when no split point", dict1["heuristic"])
-    print("solution vector when no split point:", [pulp.value(var[i]) for i in range(trans_num)])
+    print("init solution vec", np.array(dict1['var']))
     return dict1['heuristic'], np.array(dict1['var'])
 
 
@@ -88,7 +103,7 @@ def compute_exact_heuristic(ini_vec, fin_vec, inc_matrix, cost_vec):
     prob.solve()
     dict1 = {'heuristic': int(pulp.value(prob.objective)),
              'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
-    print("compute exact heuristic", dict1['var'], dict1['heuristic'])
+    # print("compute exact heuristic", dict1['var'], dict1['heuristic'])
     return dict1['heuristic'], dict1['var']
 
 

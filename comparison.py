@@ -3,7 +3,7 @@ from pm4py.objects.log.importer.xes import importer as xes_importer
 import time
 from astar_implementation import construction
 
-log = xes_importer.apply('E:\Thesis\sample_aeddeceh.xes')
+log = xes_importer.apply('E:\Thesis\sample_abcebcegh.xes')
 model_net, model_im, model_fm = construction.construct_model_net()
 
 print(log[0])

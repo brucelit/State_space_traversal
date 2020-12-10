@@ -1,8 +1,10 @@
+import numpy as np
+
 from pm4py.objects.petri import reachability_graph
 from pm4py.objects.petri.utils import decorate_places_preset_trans, decorate_transitions_prepostset
 
 
-def initialize_aux_dict(sync_net, sync_im, sync_fm):
+def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
     incidence_matrix, consumption_matrix, p_index, t_index = construct_incident_consumption_matrix(sync_net)
     cost_function = construct_cost_function(sync_net)
     decorate_transitions_prepostset(sync_net)
@@ -26,13 +28,21 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm):
     for k, v in t_index.items():
         if k.label[1] == ">>":
             trace_trans.append(v)
+    sync_map = {}
+    for k1, v1 in t_index.items():
+        for k2,v2 in sync_index.items():
+            if k1 == k2:
+                sync_map[v1] = v2
+    print("after mapping:", sync_map)
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_im, sync_fm, p_index, t_index,
                                                               cost_function)
+    x_0 = []
     aux_dict = {'t_index': t_index, 'p_index': p_index, 'incidence_matrix': incidence_matrix,
                 'consumption_matrix': consumption_matrix, 'place_map': place_map, 'cost_function': cost_function,
                 'visited': 0, 'order': 0, 'transition_system': ts, 'sync_trans': sync_trans, 'state_to_check': [],
-                'ts': ts, 'ini_vec': ini_vec, 'fin_vec': fin_vec, 'cost_vec': cost_vec, 'traversed': 0, 'queued': 0,
-                'trace_trans': trace_trans}
+                'ts': ts, 'ini_vec': ini_vec, 'fin_vec': fin_vec, 'cost_vec': cost_vec,
+                'traversed': 0, 'queued': 0, 'trace_trans': trace_trans, 'sync_index': sync_index,
+                'trace_trans': trace_trans, 'x_0': x_0, 'sync_map': sync_map}
     return aux_dict
 
 
@@ -53,11 +63,6 @@ def encode_marking(marking, place_index):
 
 
 def construct_incident_consumption_matrix(sync_net):
-    """
-       Returns the incidence_matrix, consumption_matrix, place_index, transition_index, which is:
-       :param sync_net: synchronous_product_net
-       :return: incidence_matrix, consumption_matrix, new_p_index, new_t_index
-       """
     p_index, t_index = {}, {}
     for p in sync_net.places:
         p_index[p] = len(p_index)
@@ -83,16 +88,6 @@ def construct_incident_consumption_matrix(sync_net):
 
 
 def construct_cost_function(sync_net):
-    """
-    Returns the standard cost function, which is:
-    * event moves: cost 1
-    * model moves: cost 1
-    * tau moves: cost 0
-    * sync moves: cost 0
-    :param sync_net:
-    :param synchronous_product_net:
-    :return:costs
-    """
     costs = {}
     for t in sync_net.transitions:
         if t.label[0] == t.label[1] or (t.label[0] == '>>' and t.label[1] == chr(964)):

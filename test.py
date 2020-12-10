@@ -1,6 +1,7 @@
 import copy
 import heapq
 import os
+import numpy as np
 
 from pm4py.objects.petri import align_utils as utils
 from pm4py.visualization.transition_system import visualizer as ts_visualizer
@@ -24,7 +25,8 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
 
     #  initial state
     ini_state = init_state(sync_im, split_lst, aux_dict['ini_vec'], aux_dict['fin_vec'], aux_dict['cost_vec'],
-                           aux_dict['incidence_matrix'], aux_dict['consumption_matrix'], aux_dict['t_index'])
+                           aux_dict['incidence_matrix'], aux_dict['consumption_matrix'], aux_dict['x_0'],
+                           aux_dict['t_index'])
     open_set = []
     heapq.heapify(open_set)
     heapq.heappush(open_set, ini_state)
@@ -32,6 +34,7 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
     # init the number of states explained
     new_split_point = None
     max_num = 0
+    max_path = []
 
     # matrices for measurement
     valid_state_lst = set()
@@ -42,17 +45,23 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
 
     # use state_path to represent all the possible path leading to current state
     state_path = {ini_state.marking_tuple: [[]]}
-
-    # print("before checking:", )
-    # for i in aux_dict['state_to_check']:
-    #     print(i.marking, "not trust:", i.not_trust)
-    # print("after checking:")
-    # changed_state, valid_path = check_state(aux_dict['state_to_check'], ini_state.parikh_vector)
-    # for i in changed_state:
-    #     print(i.marking, i.not_trust)
+    lst2 = marking_to_list(ini_state.marking, aux_dict['place_map'])
+    valid_state_lst.add(lst2)
+    print("current order: ",aux_dict['order'])
+    print("\nbefore checking:", )
+    for i in aux_dict['state_to_check']:
+        print(i.marking, "not trust:", i.not_trust)
+    print("after checking:")
+    changed_state, valid_path = check_state(aux_dict['state_to_check'], ini_state, aux_dict['sync_trans'])
+    for i in changed_state:
+        print("changed state", i.marking, i.not_trust)
+        heapq.heappush(open_set, i)
+    print("current open set:")
+    for i in open_set:
+        print(i.marking, "f:", i.f, "not trust:", i.not_trust, "g:", i.g, "h:", i.h)
 
     '''
-    ------------------
+    ---------------heapq.heappush(open_set, new_state)---
     # Line 10-30  
     ------------------
     '''
@@ -88,30 +97,38 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
         # visualize and save change
         # gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
         #                                       aux_dict['visited'], split_lst, open_set)
-        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/aeddeceh", "step" + str(aux_dict['order']) + ".png"))
+        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/acegcd", "step" + str(aux_dict['order']) + ".png"))
 
         curr_vec = initialization.encode_marking(curr.marking, aux_dict['p_index'])
         if curr_vec == aux_dict['fin_vec']:
             result = print_result(curr, aux_dict['visited'], aux_dict['queued'], aux_dict['traversed'], split_lst)
+            # gviz.graph_attr['label'] = "\nNumber of states visited: " + str(aux_dict['visited']) + \
+            #                            "\nNumber of states queued: " + str(aux_dict['queued']) + \
+            #                            "\nNumber of edges traversed: " + str(aux_dict['traversed']) + \
+            #                            "\nsplit list:" + str(split_lst.keys())
+            # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/acegcd", "step" + str(aux_dict['order']) + ".png"))
             return result
 
         if curr.marking_tuple in heuristic_set:
             # print("find in heuristic set")
             # print("solution vector",curr.parikh_vector)
             if new_split_point not in split_lst:
-                # print("order", aux_dict['order'], "new split point", new_split_point, "max num:", max_num)
+                print("检查：", new_split_point, "max path", max_path, "current split lst:", split_lst)
+                if len(split_lst) == 1:
+                    aux_dict['x_0'] = compute_x0(max_path, aux_dict['t_index'])
+                else:
+                    lst1 = list(split_lst.values())
+                    lst1.sort()
+                    if max_num < lst1[1]:
+                        aux_dict['x_0'] = compute_x0(max_path, aux_dict['t_index'])
+                        print("x_0 changed")
                 split_lst[new_split_point] = max_num
-                # print("update split list", split_lst)
+                print("current max", max_num)
                 heapq.heappush(open_set, curr)
                 aux_dict['state_to_check'] = []
                 for i in open_set:
                     if i.not_trust == 1:
                         aux_dict['state_to_check'].append(i)
-                        # print(i.marking, i.pre_trans_lst)
-                # print("test part:")
-                # for i in state_to_check:
-                #     for j in i.pre_trans_lst:
-                        # print("trans list index", j)
                 return astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
 
             new_heuristic, new_parikh_vector = heuristic.compute_exact_heuristic(curr_vec, aux_dict['fin_vec'],
@@ -133,15 +150,15 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                 heapq.heappush(open_set, curr)
                 # requeue the state after recalculating
                 continue
-        # add marking to closed set
         closed_set.add(curr.marking_tuple)
         # keep track of the maximum number of events explained
-        new_max_num = max_events_explained(curr, aux_dict['sync_trans'])
+        new_max_num, new_max_path = max_events_explained(curr, aux_dict['sync_map'])
         if new_max_num > max_num:
             max_num = new_max_num
+            max_path = new_max_path
             new_split_point = curr.last_sync
-            # print("last sync", curr.last_sync, "max num:", new_max_num)
-            # print("new split:", new_split_point, aux_dict['t_index'][new_split_point])
+            print("last sync:", curr.last_sync)
+            print("max num:", max_num, "max_path:", max_path)
         '''
         -------------
         # Line 31-end  
@@ -210,49 +227,70 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst):
                 if flag == 1:
                     heapq.heappush(open_set, new_state)
                     aux_dict['queued'] += 1
-
-        gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
-                                              aux_dict['visited'],
-                                              split_lst, open_set)
+        #
+        # gviz = visualization.viz_state_change(aux_dict['ts'], curr_state_lst, valid_state_lst, invalid_state_lst,
+        #                                       aux_dict['visited'],
+        #                                       split_lst, open_set)
         # print("\nNumber of states visited: " + str(aux_dict['visited']) + "\nsplit list:" + str(
         #     split_lst) + "\nNumber of states in open set: " + str(len(open_set)) +
         #       "\nvalid state: ", valid_state_lst, "\ninvalid state", invalid_state_lst)
-        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/aeddeceh", "step" + str(aux_dict['order']) + ".png"))
+        # ts_visualizer.save(gviz, os.path.join("E:/Thesis/img/acegcd", "step" + str(aux_dict['order']) + ".png"))
 
 
-def check_state(state_to_check, ini_parikh_vector):
+# return the index of the sync_trans, and the path before
+def max_events_explained(curr, sync_map):
+    max_path = []
+    # get the split point
+    for lst in curr.pre_trans_lst:
+        max_explained_count = -1
+        lst1 = list(sync_map.keys())
+        last_sync = None
+        for i in lst:
+            if i in lst1:
+                last_sync = i
+        if last_sync is not None:
+            if sync_map[last_sync] > max_explained_count:
+                max_explained_count = sync_map[last_sync]
+                max_path = lst[0:max_explained_count-1]
+    return max_explained_count, max_path
+
+
+def compute_x0(trans_lst, t_index):
+    x_0 = [0 for i in t_index]
+    for i in trans_lst:
+        x_0[i] = 1
+    return x_0
+
+
+def check_state(state_to_check, ini_state, sync_trans):
     changed_state = []
     valid_path = []
-    for state in state_to_check:
+    for i in range(len(state_to_check)):
+        state = state_to_check[i]
         for path in state.pre_trans_lst:
             temp_not_trust = 0
             for trans in path:
-                if ini_parikh_vector[trans] < 1:
+                if ini_state.parikh_vector[trans] < 1:
                     temp_not_trust = 1
             if temp_not_trust == 0:
                 state.not_trust = 0
+                h = ini_state.h
+                g = ini_state.g
+                for j in path:
+                    if j not in sync_trans:
+                        h -= 1
+                        g += 1
+                state.h = h
+                state.g = g
+                state.f = h + g
                 changed_state.append(state)
                 valid_path.append(path)
     return changed_state, valid_path
 
 
-def max_events_explained(curr, sync_trans):
-    max_count = 0
-    # get the split point
-    for lst in curr.pre_trans_lst:
-        count = 0
-        for i in lst:
-            if i in sync_trans:
-                count += 1
-        if count > max_count:
-            # print("over count:", lst)
-            max_count = count
-    return max_count
-
-
-def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, t_index):
+def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, x_0, t_index):
     ini_h, ini_parikh_vector = heuristic.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
-                                                               consumption_matrix, split_lst, t_index)
+                                                               consumption_matrix, split_lst, x_0, t_index)
     ini_tuple = tuple(ini_vec)
     ini_f = ini_h
     pre_trans_lst = [[]]
@@ -260,8 +298,7 @@ def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix,
     # print("solution vector:", ini_parikh_vector)
     # not_trust equal to 0 means the solution vector is known.
     not_trust = 0
-    return State(not_trust, ini_f, 0, ini_h, sync_im, ini_tuple, None, None, pre_trans_lst, None,
-                      ini_parikh_vector)
+    return State(not_trust, ini_f, 0, ini_h, sync_im, ini_tuple, None, None, pre_trans_lst, None, ini_parikh_vector)
 
 
 def compute_new_state_test(curr, cost_vec, t, t_index):
@@ -301,7 +338,7 @@ def compute_enabled_transition(state):
     for t in enabled_trans:
         if state.pre_transition is None:
             break
-        if state.pre_transition.label[1] == ">>" and t.label[0] == ">>":
+        if state.pre_transition.label[0] == ">>" and t.label[1] == ">>":
             violated_trans.append(t)
     for t in violated_trans:
         enabled_trans.remove(t)
@@ -352,15 +389,7 @@ class State:
         self.pre_state = pre_state
         self.last_sync = last_sync
 
-    #
-    # def __lt__(self, other):
-    #     return (self.not_trust, self.f, other.g) < (other.not_trust, other.f, self.g)
-    #
-    # def __gt__(self, other):
-    #     return (other.not_trust, self.f, other.g) > (other.not_trust, other.f, self.g)
-    #
-    # def __eq__(self, other):
-    #     return (self.f, self.not_trust, self.g) == (other.f, other.not_trust, other.g)
+
     def __lt__(self, other):
         return (self.f, self.not_trust, other.g) < (other.f, other.not_trust, self.g)
 
@@ -369,3 +398,12 @@ class State:
 
     def __eq__(self, other):
         return (self.f, self.not_trust, self.g) == (other.f, other.not_trust, other.g)
+    # def __lt__(self, other):
+    #     return (self.not_trust, self.f, other.g) < (other.not_trust, other.f, self.g)
+    #
+    # def __gt__(self, other):
+    #     return (other.not_trust, self.f, other.g) > (other.not_trust, other.f, self.g)
+    #
+    # def __eq__(self, other):
+    #     return (self.f, self.not_trust, self.g) == (other.f, other.not_trust, other.g)
+
