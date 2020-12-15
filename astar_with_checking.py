@@ -291,6 +291,7 @@ def check_state(state_to_check, ini_state, sync_trans):
 def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, x_0, t_index):
     ini_h, ini_parikh_vector = heuristic.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                                                                consumption_matrix, split_lst, x_0, t_index)
+    print("heuristic computed: ", ini_h)
     ini_tuple = tuple(ini_vec)
     ini_f = ini_h
     pre_trans_lst = [[]]

@@ -33,7 +33,7 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
         for k2,v2 in sync_index.items():
             if k1 == k2:
                 sync_map[v1] = v2
-    print("after mapping:", sync_map)
+    # print("after mapping:", sync_map)
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_im, sync_fm, p_index, t_index,
                                                               cost_function)
     x_0 = []

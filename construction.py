@@ -97,6 +97,4 @@ def construct_trace(trace):
     trace_fm[p] = 1
     # gviz2 = visualizer.apply(trace_net, trace_im, trace_fm)
     # visualizer.view(gviz2)
-    for i in trace_net.transitions:
-        print(i)
     return trace_net, trace_im, trace_fm
