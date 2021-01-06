@@ -29,11 +29,12 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
         if k.label[1] == ">>":
             trace_trans.append(v)
     sync_map = {}
+    print("sync_index", sync_index)
     for k1, v1 in t_index.items():
-        for k2,v2 in sync_index.items():
+        for k2, v2 in sync_index.items():
             if k1 == k2:
                 sync_map[v1] = v2
-    # print("after mapping:", sync_map)
+    print("after mapping:", sync_map)
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_im, sync_fm, p_index, t_index,
                                                               cost_function)
     x_0 = []
@@ -90,7 +91,7 @@ def construct_incident_consumption_matrix(sync_net):
 def construct_cost_function(sync_net):
     costs = {}
     for t in sync_net.transitions:
-        if t.label[0] == t.label[1] or (t.label[0] == '>>' and t.label[1] == chr(964)):
+        if t.label[0] == t.label[1] or (t.label[0] == '>>' and t.label[1] =='τ'):
             costs[t] = 0
         else:
             costs[t] = 1

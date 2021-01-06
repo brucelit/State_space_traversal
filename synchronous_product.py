@@ -48,8 +48,8 @@ def construct(pn1, im1, fm1, pn2, im2, fm2, skip):
         sync_fm[p1_map[p]] = fm1[p]
     for p in fm2:
         sync_fm[p2_map[p]] = fm2[p]
-
-    return sync_net, sync_im, sync_fm, sync_index
+    sync_index1 = {k: v for k, v in sorted(sync_index.items(), key=lambda item: item[1])}
+    return sync_net, sync_im, sync_fm, sync_index1
 
 
 

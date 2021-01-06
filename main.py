@@ -1,11 +1,13 @@
 # from pm4py.objects.petri import synchronous_product
-from astar_implementation import construction, astar_latest, initialization, astar_with_checking, synchronous_product
+from astar_implementation import construction, astar_latest, initialization, synchronous_product
 import time
-from memory_profiler import memory_usage
+
 
 if __name__ == '__main__':
     model_net, model_im, model_fm = construction.construct_model_net()
-    trace_net, trace_im, trace_fm = construction.construct_trace('cbedgh')
+    trace_net, trace_im, trace_fm = construction.construct_trace('acbdeebehbdcdafeg')
+
+    start_time = time.time()
     sync_net, sync_im, sync_fm, sync_index = synchronous_product.construct(trace_net, trace_im, trace_fm, model_net,
                                                                            model_im,
                                                                            model_fm, '>>')
@@ -14,5 +16,6 @@ if __name__ == '__main__':
     start_time = time.time()
     print(aux_dict['cost_vec'])
     print(aux_dict['t_index'])
-    align = astar_with_checking.astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
+    align = astar_latest.astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
+    print(align)
     print("--- %s seconds ---" % (time.time() - start_time))

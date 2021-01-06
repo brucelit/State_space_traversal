@@ -298,13 +298,13 @@ def compute_enabled_transition(state):
             possible_enabling_transitions.add(t)
     enabled_trans = [t for t in possible_enabling_transitions if t.sub_marking <= state.marking]
     violated_trans = []
-    for t in enabled_trans:
-        if state.pre_transition is None:
-            break
-        if state.pre_transition.label[1] == ">>" and t.label[0] == ">>":
-            violated_trans.append(t)
-    for t in violated_trans:
-        enabled_trans.remove(t)
+    # for t in enabled_trans:
+    #     if state.pre_transition is None:
+    #         break
+    #     if state.pre_transition.label[1] == ">>" and t.label[0] == ">>":
+    #         violated_trans.append(t)
+    # for t in violated_trans:
+    #     enabled_trans.remove(t)
     return sorted(enabled_trans, key=lambda k: k.label)
 
 
@@ -320,7 +320,7 @@ def print_result(state, visited, queued, traversed, split_lst):
     return result
 
 
-def reconstruct_alignment(state, visited, queued, traversed, ret_tuple_as_trans_desc=False):
+def reconstruct_alignment(state, visited, queued, traversed, split, ret_tuple_as_trans_desc=False):
     parent = state.pre_state
     if ret_tuple_as_trans_desc:
         alignment = [(state.pre_transition.name, state.pre_transition.label)]

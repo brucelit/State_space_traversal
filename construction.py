@@ -98,3 +98,28 @@ def construct_trace(trace):
     # gviz2 = visualizer.apply(trace_net, trace_im, trace_fm)
     # visualizer.view(gviz2)
     return trace_net, trace_im, trace_fm
+
+
+
+def construct_trace_ccc(trace_to_lst):
+    trace_net = PetriNet("trace_net")
+    len1 = len(trace_to_lst)
+    trace_im = Marking()
+    trace_fm = Marking()
+    for i in range(1, len1+2):
+        p_i = str('p')+str(i)
+        p = PetriNet.Place(p_i)
+        trace_net.places.add(p)
+        if i == 1:
+            trace_im[p] = 1
+        else:
+            petri_utils.add_arc_from_to(t, p, trace_net)
+        if i < len1+1:
+            t_i = str('t') + str(i)
+            t = PetriNet.Transition(t_i, trace_to_lst[i - 1], order=i)
+            trace_net.transitions.add(t)
+            petri_utils.add_arc_from_to(p, t, trace_net)
+    trace_fm[p] = 1
+    # gviz2 = visualizer.apply(trace_net, trace_im, trace_fm)
+    # visualizer.view(gviz2)
+    return trace_net, trace_im, trace_fm
