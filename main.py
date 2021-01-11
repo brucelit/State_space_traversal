@@ -5,7 +5,7 @@ import time
 
 if __name__ == '__main__':
     model_net, model_im, model_fm = construction.construct_model_net()
-    trace_net, trace_im, trace_fm = construction.construct_trace('acbdeebehbdcdafeg')
+    trace_net, trace_im, trace_fm = construction.construct_trace('acegcd')
 
     start_time = time.time()
     sync_net, sync_im, sync_fm, sync_index = synchronous_product.construct(trace_net, trace_im, trace_fm, model_net,

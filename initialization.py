@@ -16,9 +16,9 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
             place_map[p] = (str(p.name[1]) + '\'')
         else:
             place_map[p] = (str(p.name[0]))
-    print(p_index)
+    # print(p_index)
     print(t_index)
-    print(incidence_matrix)
+    # print(incidence_matrix)
     ts = reachability_graph.construct_reachability_graph(sync_net, sync_im)
     sync_trans = []
     for k, v in t_index.items():
@@ -29,21 +29,28 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
         if k.label[1] == ">>":
             trace_trans.append(v)
     sync_map = {}
-    print("sync_index", sync_index)
+    # print("sync_index", sync_index)
     for k1, v1 in t_index.items():
         for k2, v2 in sync_index.items():
             if k1 == k2:
                 sync_map[v1] = v2
-    print("after mapping:", sync_map)
+    # print("after mapping:", sync_map)
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_im, sync_fm, p_index, t_index,
                                                               cost_function)
     x_0 = []
+    trans_aux_dict = {}
+    for k, v in t_index.items():
+        if k.label[0] == k.label[1]:
+            trans_aux_dict[v] = 0
+        else:
+            trans_aux_dict[v] = 1
     aux_dict = {'t_index': t_index, 'p_index': p_index, 'incidence_matrix': incidence_matrix,
                 'consumption_matrix': consumption_matrix, 'place_map': place_map, 'cost_function': cost_function,
                 'visited': 0, 'order': 0, 'transition_system': ts, 'sync_trans': sync_trans, 'state_to_check': [],
                 'ts': ts, 'ini_vec': ini_vec, 'fin_vec': fin_vec, 'cost_vec': cost_vec,
                 'traversed': 0, 'queued': 0, 'trace_trans': trace_trans, 'sync_index': sync_index,
-                'trace_trans': trace_trans, 'x_0': x_0, 'sync_map': sync_map}
+                'trace_trans': trace_trans, 'x_0': x_0, 'sync_map': sync_map,"trans_aux_dict":trans_aux_dict,
+                'block': 0, "recalculation": 0, 'split_lst':{None: -1}}
     return aux_dict
 
 
