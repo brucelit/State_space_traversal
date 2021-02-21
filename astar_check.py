@@ -51,16 +51,15 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
     state_path = {ini_state.marking_tuple: [[]]}
     lst2 = marking_to_list(ini_state.marking, aux_dict['place_map'])
     valid_state_lst.add(lst2)
-    # print("current order: ",aux_dict['order'])
-    # print("\nbefore checking:", )
-    # for i in aux_dict['state_to_check']:
-    #     print(i.marking, "not trust:", i.not_trust)
-    # print("after checking:")
-    # changed_state, valid_path = check_state(aux_dict['state_to_check'], ini_state, aux_dict['sync_trans'])
-    # for i in changed_state:
-    #     # print("changed state", i.marking, i.not_trust)
-    #     heapq.heappush(open_set, i)
-    # # print("current open set:")
+    print("current order: ",aux_dict['order'])
+    print("\nbefore checking:", )
+    for i in aux_dict['state_to_check']:
+        print(i.marking, "not trust:", i.not_trust)
+    print("after checking:")
+    changed_state, valid_path = check_state(aux_dict['state_to_check'], ini_state, aux_dict['sync_trans'])
+    for i in changed_state:
+        print("changed state", i.marking, i.not_trust, i.pre_trans_lst)
+        heapq.heappush(open_set, i)
 
 
     '''
@@ -69,27 +68,13 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
     ------------------
     '''
     while len(open_set) > 0:
-        # for i in open_set:
-        #     print(i.marking, "f:", i.f, "not trust:", i.not_trust, "g:", i.g, "h:", i.h)
         aux_dict['visited'] += 1
         aux_dict['order'] += 1
-        # print("\norder:", aux_dict['order'])
+        heapq.heapify(open_set)
+        heapq.heapify(open_set)
 
-        # print("open set:")
-        heapq.heapify(open_set)
-        # print("open set: ")
-        # for i in open_set:
-        #     print(i.marking, "f:", i.f, "not trust:", i.not_trust, "g:", i.g, "h:", i.h)
-        # print("closed set: ")
-        # for i in closed_set:
-        #     print(i)
-        heapq.heapify(open_set)
         #  favouring markings for which the exact heuristic is known.
         curr = heapq.heappop(open_set)
-        # print("check point", curr.parikh_vector)
-
-        # print("order:", aux_dict['order'])
-        # print("current marking:", curr.marking, curr.pre_trans_lst)
         # tranform places in current state to list in form p1,p2,p3…
 
         lst2 = marking_to_list(curr.marking, aux_dict['place_map'])
@@ -132,30 +117,13 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
                         # print("x_0 changed")
 
                 aux_dict['split_lst'][new_split_point] = max_num
-                # print("split list like:", aux_dict['split_lst'])
-                # print("这里有一次计算")
-                # new_ini_h, new_ini_parikh_vector = heuristic.compute_ini_heuristic(aux_dict['ini_vec'], aux_dict['fin_vec'],
-                #                                                                    aux_dict['cost_vec'], aux_dict['incidence_matrix'],
-                #                                     aux_dict['consumption_matrix'], split_lst, aux_dict['x_0'], aux_dict['t_index'],
-                #                                                                    sync_net, aux_dict, curr.marking)
-                # # print("h for initial and current h", ini_state.h, new_ini_h)
-                # # print("parikh vector:", new_ini_parikh_vector, ini_state.parikh_vector)
-                # if new_ini_h == ini_state.h and np.equal(new_ini_parikh_vector.all(), ini_state.parikh_vector.all()):
-                #     # print("show up 1！")
-                #     pass
-                # else:
-                #     # print("show up 2")
-                #     # print("current max", max_num)
-                #     heapq.heappush(open_set, curr)
-                #     aux_dict['state_to_check'] = []
-                #     for i in open_set:
-                #         if i.not_trust == 1:
-                #             aux_dict['state_to_check'].append(i)
+                for i in open_set:
+                    if i.not_trust == 1:
+                        aux_dict['state_to_check'].append(i)
                 return astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
 
-            # print("重新计算")
             # for i in open_set:
-            #     print(i.marking, "f:", i.f, "not trust:",i.not_trust, "g:", i.g, "h:", i.h, i.not_trust,i.pre_trans_lst)
+            #             #     print(i.marking, "f:", i.f, "not trust:",i.not_trust, "g:", i.g, "h:", i.h, i.not_trust,i.pre_trans_lst)
             new_heuristic, new_parikh_vector = heuristic.compute_exact_heuristic(curr_vec, aux_dict['fin_vec'],
                                                                                  aux_dict['incidence_matrix'],
                                                                                  aux_dict['cost_vec'])
@@ -178,25 +146,15 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
             heapq.heappush(open_set, curr)
             if new_heuristic > old_h:
                 # requeue the state after recalculating
-                # print("重新计算1")
                 continue
-
-        # print("加了",curr.last_sync)
         closed_set.add(curr.marking_tuple)
-        # keep track of the maximum number of events explained
-        # print("current last sync", curr.f,curr.g,curr.h,curr.last_sync,curr.not_trust)
 
+        # keep track of the maximum number of events explained
         new_max_num, new_max_path, lst10,index_10 = max_events_explained(curr, aux_dict)
-        # print("close set",closed_set)
-        # print("计算结果：", index_10, new_max_num, new_max_path, lst10)
-        # print("current last sync", curr.last_sync, new_max_num, new_max_path)
         if new_max_num > max_num:
             max_num = new_max_num
             max_path = new_max_path
             new_split_point = curr.last_sync
-            # print("the new split point is:", curr.last_sync, aux_dict['sync_index'][curr.last_sync], curr.pre_trans_lst)
-            # print("last sync is:", curr.last_sync)
-            # print("max num is:", max_num, "max_path:", max_path)
         '''
         -------------
         # Line 31-end  
@@ -206,9 +164,6 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
         enabled_trans = compute_enabled_transition(curr)
         # print("enabled_trans",enabled_trans)
         for t in enabled_trans:
-            # print(aux_dict['t_index'][t])
-            # if t.label[0]==t.label[1]:
-            #     print("验证：", t,aux_dict['sync_index'][t])
             new_marking = utils.add_markings(curr.marking, t.add_marking)
             new_tuple = tuple(initialization.encode_marking(new_marking, aux_dict['p_index']))
             # reach a marking not yet visited
@@ -353,7 +308,7 @@ def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix,
 
     ini_h, ini_parikh_vector = heuristic.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                                                                consumption_matrix, split_lst, x_0, t_index,
-                                                               sync_net, aux_dict, marking)
+                                                               )
     # print("heuristic computed: ", ini_h)
     ini_tuple = tuple(ini_vec)
     ini_f = ini_h
@@ -373,7 +328,6 @@ def compute_new_state_test(curr, cost_vec, t, t_index, aux_dict):
         i.append(index_to_add)
     new_h_score, new_parikh_vector, not_trust = heuristic.compute_estimate_heuristic(curr.h, curr.parikh_vector,
                                                                                      t_index[t], cost_vec)
-
     if t is not None and (t.label[0] == t.label[1]):
         last_sync = t
     else:
@@ -416,6 +370,7 @@ def print_result(state, aux_dict):
 
 def reconstruct_alignment(state, aux_dict, ret_tuple_as_trans_desc=False):
     parent = state.pre_state
+    aligment_num = []
     if ret_tuple_as_trans_desc:
         alignment = [(state.pre_transition.name, state.pre_transition.label)]
         while parent.pre_state is not None:
@@ -425,12 +380,12 @@ def reconstruct_alignment(state, aux_dict, ret_tuple_as_trans_desc=False):
         alignment = [state.pre_transition.label]
         while parent.pre_state is not None:
             alignment = [parent.pre_transition.label] + alignment
+            aligment_num.append(aux_dict['t_index'][parent.pre_transition])
             parent = parent.pre_state
-    # result = {"trace": "", "cost": state.g, "visited_states": visited, "queued_states": queued,
-    #     #           "traversed_edges": traversed, "split": len(split)-1, "alignment": alignment, }
     result = {"alignment": alignment, "cost": state.g, "visited_states": aux_dict['visited'],
               "queued_states": aux_dict['queued'], "traversed_arcs": aux_dict['traversed'],
-              "split": len(aux_dict['split_lst'])-1, 'block_restart': aux_dict['block'], 'h_recalculation': aux_dict['recalculation']}
+              "split": len(aux_dict['split_lst'])-1, 'block_restart': aux_dict['block'], 'h_recalculation': aux_dict['recalculation'],
+              }
     return result
 
 

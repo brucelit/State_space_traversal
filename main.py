@@ -1,5 +1,5 @@
 # from pm4py.objects.petri import synchronous_product
-from astar_implementation import construction, astar_latest, initialization, synchronous_product
+from astar_implementation import construction, astar, initialization, synchronous_product
 import time
 
 
@@ -16,6 +16,6 @@ if __name__ == '__main__':
     start_time = time.time()
     print(aux_dict['cost_vec'])
     print(aux_dict['t_index'])
-    align = astar_latest.astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
+    align = astar.astar_with_split(sync_net, sync_im, sync_fm, aux_dict, split_lst)
     print(align)
     print("--- %s seconds ---" % (time.time() - start_time))

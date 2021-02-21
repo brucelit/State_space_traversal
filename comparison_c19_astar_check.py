@@ -1,36 +1,26 @@
-from pm4py.algo.conformance.alignments.variants import state_equation_a_star, state_equation_less_memory
-from pm4py.objects.log.importer.xes import importer as xes_importer
 from pm4py.objects.petri.importer.variants.pnml import import_net
-import time
-from astar_implementation import construction
-from pm4py.visualization.petrinet import visualizer
-from astar_implementation import construction, astar_latest, initialization, synchronous_product
+from astar_implementation import construction, astar_check,astar, initialization, synchronous_product
 from csv import DictWriter
-from func_timeout import func_set_timeout
 import time
 import func_timeout
+import pandas as pd
+from pm4py.objects.log.util import dataframe_utils
+from pm4py.objects.conversion.log import converter as log_converter
 
-log = xes_importer.apply('E:\Thesis\ccc2019\CCC19 - Log CSV.csv')
+
+log_csv = pd.read_csv('E:\Thesis\ccc2019\CCC19 - Log CSV.csv', sep=',')
+log_csv.rename(columns={'ACTIVITY': 'concept:name'}, inplace=True)
+log_csv = dataframe_utils.convert_timestamp_columns_in_df(log_csv)
+parameters = {log_converter.Variants.TO_EVENT_LOG.value.Parameters.CASE_ID_KEY: 'CASEID'}
+event_log = log_converter.apply(log_csv, parameters=parameters, variant=log_converter.Variants.TO_EVENT_LOG)
 model_net, model_im, model_fm = import_net('E:\Thesis\ccc2019\CCC19 - Model PN.pnml')
-# gviz = visualizer.apply(model_net, model_im, model_fm)
-# visualizer.view(gviz)
-field_names = ['alignment', 'cost', 'visited_states', 'queued_states', 'traversed_arcs', 'split',
-               'block_restart', 'h_recalculation', 'time']
-# trace_lst_lst = []
-for case_index, case in enumerate(log):
+field_names = ['alignment', 'cost', 'visited_states', 'queued_states',  'traversed_arcs', 'block_restart',
+               'h_recalculation', 'time', 'split']
+
+for case_index, case in enumerate(event_log):
     trace_lst = []
-    for event_index, event in enumerate(log[case_index]):
-        trace_lst.append(event["concept:name"])
-
-    # if trace_lst in trace_lst_lst:
-    #     continue
-    # else:
-    #     trace_lst_lst.append(trace_lst)
-    # trace_net, trace_im, trace_fm = construction.construct_trace(trace_lst)
-    # p1 = state_equation_a_star.Parameters
-    # start_time = time.time()
-    # dict1 = state_equation_a_star.apply(log[case_index], model_net, model_im, model_fm)
-
+    for event_index, event in enumerate(event_log[case_index]):
+        trace_lst.append(event['concept:name'])
 
 
     trace_net, trace_im, trace_fm = construction.construct_trace(trace_lst)
@@ -39,16 +29,11 @@ for case_index, case in enumerate(log):
                                                                            model_fm, '>>')
     aux_dict = initialization.initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index)
     start_time = time.time()
-    # print(aux_dict['cost_vec'])
-    # print(aux_dict['t_index'])
-    # print("inci matrix", aux_dict['incidence_matrix'])
-    # print("consumption matrix", aux_dict['consumption_matrix'])
-    # print("ini vec", aux_dict['ini_vec'])
     try:
-        align = astar_latest.astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
+        align = astar_check.astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
         align['time'] = time.time() - start_time
         print(align)
-        with open('ccc_19.csv', 'a') as f_object:
+        with open('ccc_19_check.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(align)
@@ -58,7 +43,7 @@ for case_index, case in enumerate(log):
         print("timeout", id)
         align = {'alignment': "??", 'cost': "??", 'visited_states': "??", 'queued_states': "??", 'traversed_arcs': "??",
                  'split': "??", 'block_restart': "??", 'h_recalculation': "??", 'time': "??"}
-        with open('ccc_19.csv', 'a') as f_object:
+        with open('ccc_19_check.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(align)

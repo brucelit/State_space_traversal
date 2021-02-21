@@ -18,7 +18,7 @@ STD_TAU_COST = 0
 STD_SYNC_COST = 0
 
 
-def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_dict, x_0, t_index, sync_net, aux_dict, marking):
+def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, split_dict, x_0, t_index):
     k = len(split_dict) - 1
     # print("init marking", ini_vec)
     # print("fin marking", fin_vec)
@@ -41,7 +41,6 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumpt
                      for j in range(trans_num)]
                     for i in range(k)])
     costs = np.array([cost_vec for i in range(k)])
-    # print("costs: ", costs)
     # add objective
     prob += pulp.lpDot(costs.flatten(), var[0:k].flatten())
     # print("cost of x_0: ",np.dot(np.transpose(cost_vec), x_0))
@@ -51,13 +50,9 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumpt
         trans_index = t_index[temp]
         var_y[i][trans_index] = 1
 
-    # print("x_0: ", x_0)
-    # print("y:", var_y)
-
     # constraint 1
     marking_diff = np.array(fin_vec) - np.array(ini_vec) - np.dot(incidence_matrix, x_0) \
                    - np.dot(incidence_matrix, var_y.sum(axis=0))
-    # print("marking_diff",marking_diff)
     var1 = np.array(var).sum(axis=0)
     # print("var1:", var1)
     ct1 = np.dot(incidence_matrix, var1)
@@ -67,12 +62,9 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumpt
     # constraint 2
     for a in range(0, k):
         cons_two = np.array(ini_vec) + np.dot(incidence_matrix, x_0) + np.dot(consumption_matrix, var_y[a])
-        # print("cons_two:", cons_two)
-        # print("round: ", a)
         var2 = np.array([0 for i in cost_vec])
         for b in range(0, a):
             var2 = var2 + var[b] + var_y[b]
-            # print("var2 define:\n", var2)
         ct2 = np.dot(incidence_matrix, var2)
         # print("ct2 define:\n", ct2)
         for i in range(place_num):
@@ -82,35 +74,11 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumpt
     dict1 = {'heuristic': int(pulp.value(prob.objective)) + np.dot(np.transpose(cost_vec), x_0),
              'var': [[int(pulp.value(var[i][j])) for j in range(trans_num)] for i in range(k)]}
     # print("status", pulp.LpStatus[prob.status])
-    # print("var_y", var_y)
-    # print("x_0",x_0)
-    # print("solution vec:", np.array(dict1['var']).sum(axis=0) + x_0 + var_y.sum(axis=0))
-    # print("init solution vec", np.array(dict1['var']).sum(axis=0) + x_0 + var_y.sum(axis=0))
     return dict1['heuristic'], np.array(dict1['var']).sum(axis=0) + x_0 + var_y.sum(axis=0)
 
 
 def ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec):
-# def ini_heuristic_without_split(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
-#     marking, fin_vec, variant,aux_dict, use_cvxopt = False):
-#     m_vec = initialization.encode_marking(marking, aux_dict['p_index'])
-#     b_term = [i - j for i, j in zip(fin_vec, m_vec)]
-#     b_term = np.array([x * 1.0 for x in b_term]).transpose()
-#     b_term = matrix(b_term)
-#     parameters_solving = {"solver": "glpk"}
-#
-#     sol = lp_solver.apply(cost_vec, g_matrix, h_cvx, a_matrix, b_term, parameters=parameters_solving,
-#                           variant=variant)
-#     prim_obj = lp_solver.get_prim_obj_from_sol(sol, variant=variant)
-#     points = lp_solver.get_points_from_sol(sol, variant=variant)
-#
-#     prim_obj = prim_obj if prim_obj is not None else sys.maxsize
-#     points = points if points is not None else [0.0] * len(sync_net.transitions)
-#     print("init h:", prim_obj)
-#     print("init solution vec: ", points)
-#     return prim_obj, points
-
     marking_diff = np.array(fin_vec) - np.array(ini_vec)
-    # print("marking_diff", marking_diff)
     prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
     trans_num = len(cost_vec)
     place_num = len(fin_vec)
@@ -156,8 +124,5 @@ def compute_estimate_heuristic(h_score, solution_x, t_index, cost_vec):
         not_trust = 0
     result_aux[t_index] = 1
     new_solution_x = np.array(solution_x) - np.array(result_aux)
-    # print("t_index",t_index)
-    # print("old", solution_x)
-    # print("new", new_solution_x)
     new_h_score = max(0, h_score - cost_vec[t_index])
     return new_h_score, new_solution_x, not_trust

@@ -70,8 +70,8 @@ def construct_model_net():
     model_im[p1] = 1
     model_fm = Marking()
     model_fm[p7] = 1
-    # gviz = visualizer.apply(model_net, model_im, model_fm)
-    # visualizer.view(gviz)
+    gviz = visualizer.apply(model_net, model_im, model_fm)
+    visualizer.view(gviz)
     return model_net, model_im, model_fm
 
 

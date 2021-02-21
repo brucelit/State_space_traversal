@@ -52,23 +52,23 @@ def viz_state_change(ts, curr_state, valide_state_lst, invalide_state_lst, visit
         state.label = state.name
     filename = tempfile.NamedTemporaryFile(suffix='.gv')
     viz = Digraph(ts.name, filename=filename.name, engine='dot', graph_attr={'bgcolor': 'transparent'})
-    viz.attr('node', shape='circle', fixedsize='true', width='1', fontsize='13')
+    viz.attr('node', shape='box', fixedsize='true', width='1', fontsize = '13')
     for s in ts.states:
         if s.name in curr_state:
-            viz.node(str(id(s)), str(""), style='filled', fillcolor="#FFFFFF")
+            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#FFFFFF")
         elif s.name in valide_state_lst:
-            viz.node(str(id(s)), str(""), style='filled', fillcolor="#1E90FF")
+            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#1E90FF")
         elif s.name in invalide_state_lst:
-            viz.node(str(id(s)), str(""), style='filled', fillcolor="#FF0000")
+            viz.node(str(id(s)), str(s.label), style='filled', fillcolor="#FF0000")
         else:
             pass
     for t in ts.transitions:
         if t.from_state.name in invalide_state_lst and (t.to_state.name in valide_state_lst or t.to_state.name in invalide_state_lst):
-            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label="")
+            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label=t.name)
         elif t.from_state.name in valide_state_lst and (t.to_state.name in valide_state_lst or t.to_state.name in invalide_state_lst):
-            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label="")
+            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label=t.name)
         elif t.from_state.name in curr_state and (t.to_state.name in valide_state_lst or t.to_state.name in invalide_state_lst):
-            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label="")
+            viz.edge(str(id(t.from_state)), str(id(t.to_state)), label=t.name)
         else:
             pass
     viz.attr(overlap='false')
