@@ -1,16 +1,5 @@
 import pulp
 import numpy as np
-from scipy.optimize import linprog
-from astar_implementation import initialization
-
-import numpy as np
-from pm4py.util.lp import solver as lp_solver
-from pm4py.objects.petri.petrinet import Marking
-from pm4py.objects.petri import semantics
-from copy import copy
-import sys
-from cvxopt import matrix
-
 
 SKIP = '>>'
 STD_MODEL_LOG_MOVE_COST = 1
@@ -25,6 +14,7 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix, consumpt
     # print("\ncurrent split:", k)
     if k == 0:
         return ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec)
+    # print("split dict", split_dict)
     split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
     # print("after sorting:",split_dict)
     split_lst = list(split_dict.keys())[1:]

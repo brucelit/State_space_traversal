@@ -263,7 +263,7 @@ def max_events_explained(curr, aux_dict):
             # print("max exalained", max_explained_count)
             # print("the max path is:", max_path)
             # print("the prev trans is:", lst2)
-    return max_explained_count, max_path,lst2, index2
+    return max_explained_count, max_path, lst2, index2
 
 
 def duplicates(lst, item):

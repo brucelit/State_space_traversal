@@ -21,8 +21,6 @@ for case_index, case in enumerate(event_log):
     trace_lst = []
     for event_index, event in enumerate(event_log[case_index]):
         trace_lst.append(event['concept:name'])
-
-
     trace_net, trace_im, trace_fm = construction.construct_trace(trace_lst)
     sync_net, sync_im, sync_fm, sync_index = synchronous_product.construct(trace_net, trace_im, trace_fm, model_net,
                                                                            model_im,

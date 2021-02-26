@@ -1,5 +1,5 @@
 from pm4py.objects.petri.importer.variants.pnml import import_net
-from astar_implementation import construction, astar,astar_check, initialization, synchronous_product
+from astar_implementation import construction, astar, rewrite_astar,astar_check, initialization, synchronous_product
 from csv import DictWriter
 import time
 import func_timeout
@@ -20,9 +20,10 @@ field_names = ['alignment', 'cost', 'visited_states', 'queued_states',  'travers
 
 for case_index, case in enumerate(event_log):
     trace_lst = []
+    if case_index !=285:
+        continue
     for event_index, event in enumerate(event_log[case_index]):
         trace_lst.append(event['concept:name'])
-
 
     trace_net, trace_im, trace_fm = construction.construct_trace(trace_lst)
     sync_net, sync_im, sync_fm, sync_index = synchronous_product.construct(trace_net, trace_im, trace_fm, model_net,
@@ -30,11 +31,11 @@ for case_index, case in enumerate(event_log):
                                                                            model_fm, '>>')
     aux_dict = initialization.initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index)
     start_time = time.time()
-    align = astar.astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
+    align = rewrite_astar.astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
     align['time'] = time.time() - start_time
-    print(align['cost'])
+    print("astar:", align['split'], align['cost'], align['alignment'])
     dict1 = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
-    print(dict1['cost'])
+    print("pm4py", dict1['cost'], dict1['alignment'])
     # with open('ccc_19_comp_g_pm4py.csv', 'a') as f_object:
     #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
     #     # Pass the dictionary as an argument to the Writerow()

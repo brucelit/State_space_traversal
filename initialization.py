@@ -49,6 +49,53 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
     return aux_dict
 
 
+def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
+    incidence_matrix, consumption_matrix, p_index, t_index = construct_incident_consumption_matrix(sync_net)
+    cost_function = construct_cost_function(sync_net)
+    decorate_transitions_prepostset(sync_net)
+    decorate_places_preset_trans(sync_net)
+    place_map = {}
+    name = sorted(p_index, key=lambda place: place.name[1])
+    for p in name:
+        if p.name[0] == '>>':
+            place_map[p] = (str(p.name[1]) + '\'')
+        else:
+            place_map[p] = (str(p.name[0]))
+    ts = reachability_graph.construct_reachability_graph(sync_net, sync_im)
+    sync_trans = []
+    for k, v in t_index.items():
+        if k.label[0] == k.label[1]:
+            sync_trans.append(v)
+    trace_trans = []
+    for k, v in t_index.items():
+        if k.label[1] == ">>":
+            trace_trans.append(v)
+    sync_map = {}
+    for k1, v1 in t_index.items():
+        for k2, v2 in sync_index.items():
+            if k1 == k2:
+                sync_map[v1] = v2
+    ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_im, sync_fm, p_index, t_index,
+                                                              cost_function)
+    x_0 = []
+    trans_aux_dict = {}
+    for k, v in t_index.items():
+        if k.label[0] == k.label[1]:
+            trans_aux_dict[v] = 0
+        else:
+            trans_aux_dict[v] = 1
+    aux_dict = {'t_index': t_index, 'p_index': p_index, 'incidence_matrix': incidence_matrix,
+                'consumption_matrix': consumption_matrix, 'place_map': place_map, 'cost_function': cost_function,
+                'visited': 0, 'order': 0, 'transition_system': ts, 'sync_trans': sync_trans, 'state_to_check': [],
+                'ts': ts, 'ini_vec': ini_vec, 'fin_vec': fin_vec, 'cost_vec': cost_vec,
+                'traversed': 0, 'queued': 0, 'trace_trans': trace_trans, 'sync_index': sync_index,
+                'trace_trans': trace_trans, 'x_0': x_0, 'sync_map': sync_map, "trans_aux_dict":trans_aux_dict,
+                'block': 0, "recalculation": 0, 'split_lst': {None: -1}, 'reuse_flag': 0}
+    # print("t index", t_index)
+    return aux_dict
+
+
+
 def vectorize_initial_final_cost(ini, fin, place_index, trans_index, cost_function):
     ini_vec = encode_marking(ini, place_index)
     fin_vec = encode_marking(fin, place_index)
