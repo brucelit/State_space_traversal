@@ -1,12 +1,8 @@
 import copy
 import heapq
-import os
-import numpy as np
-import pandas as pd
 
 from pm4py.objects.petri import align_utils as utils
 from pm4py.visualization.transition_system import visualizer as ts_visualizer
-
 from astar_implementation import heuristic
 from astar_implementation import construction as utilities
 from astar_implementation import visualization, initialization
@@ -16,7 +12,7 @@ ret_tuple_as_trans_desc = False
 from func_timeout import func_timeout, FunctionTimedOut, func_set_timeout
 import func_timeout
 
-@func_set_timeout(500)
+@func_set_timeout(400)
 def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
     """
     ------------
@@ -257,8 +253,7 @@ def check_state(state_to_check, ini_state, sync_trans):
     return changed_state, valid_path
 
 
-def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, x_0, t_index,
-               REUSE=False):
+def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, x_0, t_index):
 
     ini_h, ini_parikh_vector = heuristic.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                                                                consumption_matrix, split_lst, x_0, t_index)

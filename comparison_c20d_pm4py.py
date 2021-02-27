@@ -9,9 +9,9 @@ from pm4py.algo.conformance.alignments.variants import state_equation_a_star, st
 from pm4py.objects.log.importer.xes import importer as xes_importer
 from pm4py.objects.petri.importer.variants.pnml import import_net
 
-field_names = ['alignment', 'cost', 'queued_states', 'visited_states', 'traversed_arcs', 'recalculation','time']
-event_log = xes_importer.apply('E:\Thesis\ccc2020\log_b.xes')
-model_net, model_im, model_fm = import_net('E:\Thesis\ccc2020\model_b.pnml')
+field_names = ['alignment', 'cost', 'queued_states', 'visited_states', 'traversed_arcs', 'recalculation', 'time']
+event_log = xes_importer.apply('F:\State_space_traversal\data\CCC19 - Log XES.xes')
+model_net, model_im, model_fm = import_net('F:\State_space_traversal\data\CCC19 - Model PN.pnml')
 for case_index, case in enumerate(event_log):
     trace_lst = []
     for event_index, event in enumerate(event_log[case_index]):
@@ -21,10 +21,10 @@ for case_index, case in enumerate(event_log):
     p1 = state_equation_a_star.Parameters
     start_time = time.time()
     try:
-        align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
+        align = astar.apply(event_log[case_index], model_net, model_im, model_fm)
         align['time'] = time.time() - start_time
         print(align)
-        with open('E:\State_space_traversal\data_results\ccc20_b_pm4py.csv', 'a') as f_object:
+        with open('F:\State_space_traversal\cc_results\ccc2019_astar.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(align)
@@ -34,7 +34,7 @@ for case_index, case in enumerate(event_log):
         print("timeout", id)
         align = {'alignment': "??", 'cost': "??", 'visited_states': "??", 'queued_states': "??", 'traversed_arcs': "??",
                 'recalculation': "??",'time':'??'}
-        with open('E:\State_space_traversal\data_results\ccc20_b_pm4py.csv', 'a') as f_object:
+        with open('F:\State_space_traversal\cc_results\ccc2019_astar.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(align)
