@@ -1,5 +1,3 @@
-import numpy as np
-
 from pm4py.objects.petri import reachability_graph
 from pm4py.objects.petri.utils import decorate_places_preset_trans, decorate_transitions_prepostset
 
@@ -90,8 +88,7 @@ def initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index):
                 'ts': ts, 'ini_vec': ini_vec, 'fin_vec': fin_vec, 'cost_vec': cost_vec,
                 'traversed': 0, 'queued': 0, 'trace_trans': trace_trans, 'sync_index': sync_index,
                 'trace_trans': trace_trans, 'x_0': x_0, 'sync_map': sync_map, "trans_aux_dict":trans_aux_dict,
-                'block': 0, "recalculation": 0, 'split_lst': {None: -1}, 'reuse_flag': 0}
-    # print("t index", t_index)
+                'block': 0, "recalculation": 0, 'split_lst': {None: -1}, 'restart': 0}
     return aux_dict
 
 

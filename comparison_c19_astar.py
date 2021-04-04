@@ -1,5 +1,5 @@
 from pm4py.objects.petri.importer.variants.pnml import import_net
-from astar_implementation import construction, astar, rewrite_astar,astar_check, initialization, synchronous_product
+from astar_implementation import construction, initialization, synchronous_product, astar_v2
 from csv import DictWriter
 import time
 import func_timeout
@@ -17,7 +17,7 @@ parameters = {log_converter.Variants.TO_EVENT_LOG.value.Parameters.CASE_ID_KEY: 
 event_log = log_converter.apply(log_csv, parameters=parameters, variant=log_converter.Variants.TO_EVENT_LOG)
 model_net, model_im, model_fm = import_net('F:\State_space_traversal\data\CCC19 - Model PN.pnml')
 field_names = ['alignment', 'cost', 'visited_states', 'queued_states',  'traversed_arcs', 'block_restart',
-               'h_recalculation', 'time', 'split']
+               'h_recalculation', 'time', 'split', 'lp_solved']
 
 for case_index, case in enumerate(event_log):
     trace_lst = []
@@ -30,27 +30,28 @@ for case_index, case in enumerate(event_log):
                                                                            model_fm, '>>')
     aux_dict = initialization.initialize_aux_dict(sync_net, sync_im, sync_fm, sync_index)
     start_time = time.time()
-    align = rewrite_astar.astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
+    align = astar_v2.astar_with_split(sync_net, sync_im, sync_fm, aux_dict)
     align['time'] = time.time() - start_time
-    print(align['cost'])
-    dict1 = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
-    print("pm4py", dict1['cost'])
-    # with open('ccc_19_comp_g_pm4py.csv', 'a') as f_object:
-    #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-    #     # Pass the dictionary as an argument to the Writerow()
-    #     dictwriter_object.writerow(align)
-    #     # Close the file object
-    #     f_object.close()
-    # except func_timeout.exceptions.FunctionTimedOut:
-    #     print("timeout", id)
-    #     align = {'alignment': "??", 'cost': "??", 'visited_states': "??", 'queued_states': "??", 'traversed_arcs': "??",
-    #              'split': "??", 'block_restart': "??", 'h_recalculation': "??", 'time': "??"}
-    #     with open('ccc_19_without_check.csv', 'a') as f_object:
-    #         dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-    #         # Pass the dictionary as an argument to the Writerow()
-    #         dictwriter_object.writerow(align)
-    #         # Close the file object
-    #         f_object.close()
+    # print(align['cost'])
+    # align = astar_v2.apply(event_log[case_index], model_net, model_im, model_fm)
+    # print("pm4py", dict1['cost'])
+    try:
+        with open('ccc_19_astar_latest.csv', 'a') as f_object:
+            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+            # Pass the dictionary as an argument to the Writerow()
+            dictwriter_object.writerow(align)
+            # Close the file object
+            f_object.close()
+    except func_timeout.exceptions.FunctionTimedOut:
+        print("timeout", id)
+        align = {'alignment': "??", 'cost': "??", 'visited_states': "??", 'queued_states': "??", 'traversed_arcs': "??",
+                 'split': "??", 'block_restart': "??", 'h_recalculation': "??", 'time': "??"}
+        with open('ccc_19_astar_latest.csv', 'a') as f_object:
+            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+            # Pass the dictionary as an argument to the Writerow()
+            dictwriter_object.writerow(align)
+            # Close the file object
+            f_object.close()
 
 # sync_net, sync_im, sync_fm, sync_index = synchronous_product.construct(trace_net, trace_im, trace_fm, model_net,
 #                                                                        model_im,
