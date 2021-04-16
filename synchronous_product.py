@@ -26,7 +26,6 @@ def construct(pn1, im1, fm1, pn2, im2, fm2, skip):
     for t1 in pn1.transitions:
         for t2 in pn2.transitions:
             if t1.label == t2.label:
-                # print("t1 order:", t1.order)
                 sync = PetriNet.Transition((t1.name, t2.name), (t1.label, t2.label))
                 sync_index[sync] = t1.order
                 sync_net.transitions.add(sync)

@@ -7,7 +7,7 @@ import pandas as pd
 from pm4py.objects.petri import align_utils as utils
 from pm4py.visualization.transition_system import visualizer as ts_visualizer
 
-from astar_implementation import heuristic
+from astar_implementation import heuristic2
 from astar_implementation import construction as utilities
 from astar_implementation import visualization, initialization
 
@@ -124,9 +124,9 @@ def astar_with_split(sync_net, sync_im, sync_fm, aux_dict):
 
             # for i in open_set:
             #             #     print(i.marking, "f:", i.f, "not trust:",i.not_trust, "g:", i.g, "h:", i.h, i.not_trust,i.pre_trans_lst)
-            new_heuristic, new_parikh_vector = heuristic.compute_exact_heuristic(curr_vec, aux_dict['fin_vec'],
-                                                                                 aux_dict['incidence_matrix'],
-                                                                                 aux_dict['cost_vec'])
+            new_heuristic, new_parikh_vector = heuristic2.compute_exact_heuristic(curr_vec, aux_dict['fin_vec'],
+                                                                                  aux_dict['incidence_matrix'],
+                                                                                  aux_dict['cost_vec'])
             aux_dict['recalculation'] = aux_dict['recalculation']+1
             # print("recalculation:", curr.h, "new h:", new_heuristic)
             heuristic_set.remove(curr.marking_tuple)
@@ -306,9 +306,9 @@ def check_state(state_to_check, ini_state, sync_trans):
 def init_state(sync_im, split_lst, ini_vec, fin_vec, cost_vec, incidence_matrix, consumption_matrix, x_0, t_index,
                sync_net, aux_dict, marking, REUSE=False):
 
-    ini_h, ini_parikh_vector = heuristic.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
-                                                               consumption_matrix, split_lst, x_0, t_index,
-                                                               )
+    ini_h, ini_parikh_vector = heuristic2.compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
+                                                                consumption_matrix, split_lst, x_0, t_index,
+                                                                )
     # print("heuristic computed: ", ini_h)
     ini_tuple = tuple(ini_vec)
     ini_f = ini_h
@@ -326,8 +326,8 @@ def compute_new_state_test(curr, cost_vec, t, t_index, aux_dict):
     for i in new_pre_trans_lst:
         index_to_add = t_index[t]
         i.append(index_to_add)
-    new_h_score, new_parikh_vector, not_trust = heuristic.compute_estimate_heuristic(curr.h, curr.parikh_vector,
-                                                                                     t_index[t], cost_vec)
+    new_h_score, new_parikh_vector, not_trust = heuristic2.compute_estimate_heuristic(curr.h, curr.parikh_vector,
+                                                                                      t_index[t], cost_vec)
     if t is not None and (t.label[0] == t.label[1]):
         last_sync = t
     else:

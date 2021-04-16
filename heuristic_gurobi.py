@@ -3,37 +3,23 @@ from gurobipy import GRB
 import numpy as np
 import time
 
+import gurobipy as gp
+import numpy as np
 
-def ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec):
-    start_time = time.time()
-    try:
-        marking_diff = np.array(fin_vec) - np.array(ini_vec)
-
-        # Create a new model
-        m = gp.Model('h1')
-
-        # Create Vars
-        trans_num = len(cost_vec)
-        var = m.addMVar(trans_num, lb=0, vtype=GRB.INTEGER, name="variable")
-        ct1 = np.asarray(incidence_matrix) @ var
-
-        # Set obj
-        m.setObjective(np.asarray(cost_vec) @ var, GRB.MINIMIZE)
-
-        # Add constraints
-        m.addConstr(ct1 == marking_diff)
-
-        # Optimize model
-        m.optimize()
-        print(time.time() - start_time)
-        if GRB.OPTIMAL == 2:
-            return m.objVal, np.asarray(m.x), "Optimal"
-        else:
-            return m.objVal, np.asarray(m.x), "Infeasible"
-
-
-    except gp.GurobiError as e:
+try:
+    m = gp.Model("model")
+    x = m.addMVar(shape=(10), name="x")
+    y = m.addMVar(shape=(5), name="y")
+    A = np.random.rand(5, 10)
+    print("y")
+    m.addConstrs((A[i,:] @ x - (y[i]@y[i]) <= A[i,0] for i in range(5)),
+    name="const")
+    m.setObjective(x.sum() - y @ y, gp.GRB.MAXIMIZE)
+    print("y@y", y@y)
+    m.optimize()
+except gp.GurobiError as e:
         print('Error code ' + str(e.errno) + ': ' + str(e))
 
-    except AttributeError:
+except AttributeError:
         print('Encountered an attribute error')
+
