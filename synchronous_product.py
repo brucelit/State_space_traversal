@@ -1,4 +1,4 @@
-from astar_implementation.petrinet import PetriNet, Marking
+from petrinet import PetriNet, Marking
 from pm4py.objects.petri.utils import add_arc_from_to
 
 
