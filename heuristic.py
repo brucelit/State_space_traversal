@@ -11,13 +11,9 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                           consumption_matrix, split_dict, t_index, p_index,
                           trace_lst_log, trace_lst_sync, set_model_move):
     k = len(split_dict) - 1
-    # if k == 0:
-    #     return ini_heuristic_without_split(ini_vec, fin_vec, incidence_matrix, cost_vec,trace_lst_log,trace_lst_sync)
     split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
-    split_lst = list(split_dict.keys())[1:]
-    split_lst2 = list(split_dict.values())[1:]
-    split_lst2.append(len(trace_lst_log))
-    event_num = len(trace_lst_log)
+    split_lst = list(split_dict.values())[1:]
+    split_lst.append(len(trace_lst_log))
     place_num = len(p_index)
     trans_num = len(t_index)
 
@@ -63,7 +59,7 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
     # constraint 5,6
     y_col = 1
     prob += np.sum(var_y[0]) == 0
-    for i in split_lst2[:-1]:
+    for i in split_lst[:-1]:
         if trace_lst_sync[i] is not None and trace_lst_log[i] is not None:
             prob += pulp.LpAffineExpression([(var_y[y_col][trace_lst_sync[i]], 1),
                                              (var_y[y_col][trace_lst_log[i]], 1)]) == 1
@@ -71,6 +67,42 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
             prob += pulp.LpAffineExpression([(var_y[y_col][trace_lst_log[i]], 1)]) == 1
         prob += pulp.lpSum(var_y[y_col]) == 1
         y_col += 1
+
+    # additional constraints
+    set1 = set()
+    for i in range(split_lst[k-1]+1, split_lst[k]):
+        if trace_lst_sync[i] is not None:
+            # prob += pulp.LpAffineExpression([(var_y[k-1][trace_lst_sync[i]], 1),
+            #                                  (var_y[k-1][trace_lst_log[i]], 1)]) == 1
+            set1.add(trace_lst_sync[i])
+        if trace_lst_log[i] is not None:
+            set1.add(trace_lst_log[i])
+
+    set1.add(trace_lst_sync[-1])
+    set1.add(trace_lst_log[-1])
+    set2 = set1.union(set_model_move)
+    set3 = set([i for i in range(trans_num)])
+    set4 = set3.difference(set2)
+    for j in range(trans_num):
+        if j in set4:
+            prob += pulp.LpAffineExpression([(var_x[k][j], 1)]) == 0
+    #
+    # for j in range(1, k - 2):
+    #     set1 = set()
+    #     for i in range(split_lst[j] + 1, split_lst[j + 1]):
+    #         if trace_lst_sync[i] is not None:
+    #             set1.add(trace_lst_sync[i])
+    #         if trace_lst_log[i] is not None:
+    #             set1.add(trace_lst_log[i])
+    #     # set1.add(trace_lst_sync[-1])
+    #     # set1.add(trace_lst_log[-1])
+    #     set2 = set1.union(set_model_move)
+    #     set3 = set([i for i in range(trans_num)])
+    #     set4 = set3.difference(set2)
+    #     print("j:", j, "split", split_lst[j], split_lst[j+1], "set 4", len(set4), "trans num:", trans_num, "model",len(set_model_move))
+    #     for m in range(trans_num):
+    #         if m in set4:
+    #             prob += pulp.LpAffineExpression([(var_x[j][m], 1)]) == 0
 
     # add objective
     costs = np.array([cost_vec for i in range(2 * k + 2)])
