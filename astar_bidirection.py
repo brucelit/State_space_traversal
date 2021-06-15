@@ -1,5 +1,6 @@
 import heapq
 import sys
+import time
 from enum import Enum
 import re
 import numpy as np
@@ -13,7 +14,14 @@ from pm4py.util import exec_utils
 from pm4py.util.constants import PARAMETER_CONSTANT_ACTIVITY_KEY
 from pm4py.util.xes_constants import DEFAULT_NAME_KEY
 from pm4py.util import variants_util
+
+import construction
 from heuristic import compute_ini_heuristic, compute_exact_heuristic
+from construction import construct_cost_aware_forward, construct_cost_aware_backward
+from pm4py.objects.petri.petrinet import PetriNet, Marking
+from pm4py.objects import petri
+from pm4py.objects.petri import utils as petri_utils
+from pm4py.visualization.petrinet import visualizer
 
 
 class Parameters(Enum):
@@ -59,6 +67,7 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
     -------
     dictionary: `dict` with keys **alignment**, **cost**, **visited_states**, **queued_states** and **traversed_arcs**
     """
+    start_time = time.time()
     if parameters is None:
         parameters = {}
 
@@ -88,51 +97,21 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
                 model_cost_function[t] = 1
         parameters[Parameters.PARAM_MODEL_COST_FUNCTION] = model_cost_function
         parameters[Parameters.PARAM_SYNC_COST_FUNCTION] = sync_cost_function
+
     trace_net, trace_im, trace_fm, parameters[
         Parameters.PARAM_TRACE_NET_COSTS] = trace_net_cost_aware_constr_function(trace,
                                                                                  trace_cost_function,
                                                                                  activity_key=activity_key)
+
     alignment = apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_im, trace_fm,
-                                parameters)
+                                start_time, parameters)
     return alignment
 
 
-def apply_from_variant(variant, petri_net, initial_marking, final_marking, parameters=None):
-    """
-    Apply the alignments from the specification of a single variant
-
-    Parameters
-    -------------
-    variant
-        Variant (as string delimited by the "variant_delimiter" parameter)
-    petri_net
-        Petri net
-    initial_marking
-        Initial marking
-    final_marking
-        Final marking
-    parameters
-        Parameters of the algorithm (same as 'apply' method, plus 'variant_delimiter' that is , by default)
-
-    Returns
-    ------------
-    dictionary: `dict` with keys **alignment**, **cost**, **visited_states**, **queued_states** and **traversed_arcs**
-    """
-    if parameters is None:
-        parameters = {}
-    trace = variants_util.variant_to_trace(variant, parameters=parameters)
-
-    return apply(trace, petri_net, initial_marking, final_marking, parameters=parameters)
-
-
-def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_im, trace_fm,
+def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_im, trace_fm, start_time,
                     parameters=None):
-    if parameters is None:
-        parameters = {}
-
     ret_tuple_as_trans_desc = exec_utils.get_param_value(Parameters.PARAM_ALIGNMENT_RESULT_IS_SYNC_PROD_AWARE,
                                                          parameters, False)
-
     trace_cost_function = exec_utils.get_param_value(Parameters.PARAM_TRACE_COST_FUNCTION, parameters, None)
     model_cost_function = exec_utils.get_param_value(Parameters.PARAM_MODEL_COST_FUNCTION, parameters, None)
     sync_cost_function = exec_utils.get_param_value(Parameters.PARAM_SYNC_COST_FUNCTION, parameters, None)
@@ -144,11 +123,15 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
             if t_trace.label == t_model.label:
                 revised_sync[(t_trace, t_model)] = sync_cost_function[t_model]
 
-    sync_prod, sync_initial_marking, sync_final_marking, cost_function = construct_cost_aware(
-        trace_net, trace_im, trace_fm, petri_net, initial_marking, final_marking, utils.SKIP,
-        trace_net_costs, model_cost_function, revised_sync)
-    max_align_time_trace = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
-                                                      sys.maxsize)
+    # forward_sync_prod, forward_initial_marking, forward_final_marking, cost_function = \
+    #     construct_cost_aware_forward(trace_net, trace_im, trace_fm, petri_net, initial_marking,
+    #                          final_marking, utils.SKIP, trace_net_costs, model_cost_function,
+    #                          revised_sync)
+
+    backward_sync_prod, backward_initial_marking, backward_final_marking, cost_function = \
+        construct_cost_aware_backward(trace_net, trace_im, trace_fm, petri_net, initial_marking,
+                                      final_marking, utils.SKIP, trace_net_costs, model_cost_function,
+                                      revised_sync)
 
     decorate_transitions_prepostset(trace_net)
     decorate_places_preset_trans(trace_net)
@@ -163,31 +146,31 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
             for t in p.ass_trans:
                 if t.sub_marking <= current_marking:
                     enabled_trans.add(t)
-                    trace_lst.append(t)
+                    trace_lst.insert(0, t)
         for t in enabled_trans:
             new_marking = utils.add_markings(current_marking, t.add_marking)
         current_marking = new_marking
 
-    return apply_sync_prod(sync_prod, sync_initial_marking, sync_final_marking, cost_function, trace_lst,
-                           utils.SKIP, ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
-                           max_align_time_trace=max_align_time_trace)
+    return apply_sync_prod(
+        # forward_sync_prod, forward_initial_marking, forward_final_marking,
+        backward_sync_prod, backward_initial_marking, backward_final_marking,
+        cost_function, trace_lst,
+        utils.SKIP, ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
+    )
 
 
-def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, trace_lst, skip,
-                    ret_tuple_as_trans_desc=False,
-                    max_align_time_trace=sys.maxsize):
+def apply_sync_prod(sync_prod, backward_initial_marking, backward_final_marking,
+                    cost_function,
+                    trace_lst, skip,
+                    ret_tuple_as_trans_desc=False):
+    # decorate_transitions_prepostset(sync_prod)
+    # decorate_places_preset_trans(sync_prod)
+
+    # add a reverse petri
     decorate_transitions_prepostset(sync_prod)
     decorate_places_preset_trans(sync_prod)
-
     incidence_matrix = inc_mat_construct(sync_prod)
-    split_dict = {}
-
-    # violate = list(violate_lst.values())
-    # for t in sync_prod.transitions:
-    #     if t.label[0] == t.label[1] and int(re.search("(\d+)(?!.*\d)", t.name[0]).group()) + 1 in violate:
-    #         split_dict[t] = int(re.search("(\d+)(?!.*\d)", t.name[0]).group()) + 1
-
-    split_dict[None] = -1
+    split_dict = {None: -1}
     visited = 0
     queued = 0
     traversed = 0
@@ -201,7 +184,9 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, tr
                 trace_log[i] = t_index[t]
             if trace_lst[i].name == t.name[0] and t.label[1] != ">>":
                 trace_sync[i] = t_index[t]
-    return __search(sync_prod, initial_marking, final_marking, cost_function, skip, split_dict, incidence_matrix, {},
+    return __search(sync_prod, backward_initial_marking, backward_final_marking,
+                    # backward_sync_prod, backward_initial_marking, backward_final_marking,
+                    cost_function, skip, split_dict, incidence_matrix, {},
                     0, 0, visited, queued, traversed, lp_solved, trace_sync, trace_log,
                     ret_tuple_as_trans_desc=ret_tuple_as_trans_desc, use_init=False)
 
@@ -209,14 +194,14 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, tr
 def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
              restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log,
              ret_tuple_as_trans_desc=False, use_init=False, open_set=None):
+    t_index = incidence_matrix.transitions
+    p_index = incidence_matrix.places
     ini_vec, fin_vec, cost_vec = utils.__vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
-
     closed = set()
     cost_vec = [x * 1.0 for x in cost_vec]
     cost_vec2 = [x * 1.0 for x in cost_vec]
-    t_index = incidence_matrix.transitions
-    p_index = incidence_matrix.places
     set_model_move = []
+
     for t in t_index:
         if t.label[0] == ">>":
             set_model_move.append(t_index[t])
@@ -229,7 +214,7 @@ def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matri
     else:
         h, x = compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec2)
     open_set = []
-    order = 0
+    order = 1
     ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], order)
     open_set.append(ini_state)
     heapq.heapify(open_set)
@@ -246,43 +231,47 @@ def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matri
     while not len(open_set) == 0:
         # Get the most promising marking
         curr = heapq.heappop(open_set)
+
         # final marking reached
-        # if curr.m == fin:
-        #     return utils.__reconstruct_alignment(curr, visited, queued, traversed, restart, block_restart,
-        #                                          ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
-        #                                          lp_solved=lp_solved)
+        if curr.m == fin:
+            return utils.__reconstruct_alignment(curr, visited, queued, traversed, restart,
+                                                 ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
+                                                 lp_solved=lp_solved)
 
         # heuristic of m is not exact
         if not curr.trust:
-            #
-            # # check if s is not already a splitpoint in K
-            # if max_events not in split_lst.values() and split_point not in temp_split:
-            #
-            #     # Add s to the maximum events explained to K
-            #     split_lst.update({split_point: max_events})
-            #     h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec2, incidence_matrix.a_matrix,
-            #                                             incidence_matrix.b_matrix, split_lst, t_index, p_index,
-            #                                             trace_sync, trace_log, set_model_move)
-            #     lp_solved += 1
-            #     if trustable != 'Optimal':
-            #         temp_split[split_point] = 1
-            #         del split_lst[split_point]
-            #         max_events = old_max
-            #         split_point = old_split
-            #         print("Infeasible")
-            #         block_restart += 1
-            #     if np.array_equal(x, ini_state.x):
-            #         print("Equal solution", split_point, max_events)
-            #         block_restart += 1
-            #     else:
-            #         init_dict['x'] = x
-            #         init_dict['h'] = h
-            #         restart += 1
-            #         return __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
-            #                         restart, block_restart, visited, queued, traversed, lp_solved, trace_sync,
-            #                         trace_log,
-            #                         ret_tuple_as_trans_desc=False,
-            #                         use_init=True, open_set=open_set)
+            # check if s is not already a splitpoint in K
+            if max_events not in split_lst.values() and split_point not in temp_split:
+                # Add s to the maximum events explained to K
+                split_lst.update({split_point: max_events})
+                h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec2, incidence_matrix.a_matrix,
+                                                        incidence_matrix.b_matrix, split_lst, t_index, p_index,
+                                                        trace_sync, trace_log, set_model_move)
+                lp_solved += 1
+                if trustable != 'Optimal':
+                    temp_split[split_point] = 1
+                    del split_lst[split_point]
+                    max_events = old_max
+                    split_point = old_split
+                    print("Infeasible")
+                    block_restart += 1
+                if np.array_equal(x, ini_state.x):
+                    print("Equal solution", split_point, max_events)
+                    block_restart += 1
+                    # temp_split[split_point] = 1
+                    # del split_lst[split_point]
+                    # max_events = old_max
+                    # split_point = old_split
+                else:
+                    print("split_list", split_lst)
+                    init_dict['x'] = x
+                    init_dict['h'] = h
+                    restart += 1
+                    return __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
+                                    restart, block_restart, visited, queued, traversed, lp_solved, trace_sync,
+                                    trace_log,
+                                    ret_tuple_as_trans_desc=False,
+                                    use_init=True, open_set=open_set)
 
             # compute the true heuristic
             h, x = compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
@@ -297,16 +286,14 @@ def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matri
                 continue
 
         closed.add(curr.m)
-        # new_max_events, last_sync = get_max_events(curr)
-        # if new_max_events > max_events and last_sync is not None and new_max_events not in split_lst.values():
-        #     old_max = max_events
-        #     max_events = new_max_events
-        #     old_split = split_point
-        #     split_point = last_sync
-
+        new_max_events, last_sync = get_max_events(curr)
+        if len(trace_log) - new_max_events + 1 > max_events and last_sync is not None and len(trace_log) - new_max_events+1 not in split_lst.values():
+            old_max = max_events
+            max_events = len(trace_log) - new_max_events + 1
+            # max_events = new_max_events
+            old_split = split_point
+            split_point = last_sync
         visited += 1
-        # enabled_trans = copy(trans_empty_preset)
-
         enabled_trans = set()
         for p in curr.m:
             for t in p.ass_trans:
@@ -314,14 +301,14 @@ def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matri
                     enabled_trans.add(t)
 
         # add model move restriction to the transitions selected
-        # if curr.t is not None:
-        #     if curr.t.label[1] == ">>":
-        #         violated_trans = []
-        #         for t in enabled_trans:
-        #             if t.label[0] == ">>":
-        #                 violated_trans.append(t)
-        #         for trans in violated_trans:
-        #             enabled_trans.remove(trans)
+        if curr.t is not None:
+            if curr.t.label[1] == ">>":
+                violated_trans = []
+                for t in enabled_trans:
+                    if t.label[0] == ">>":
+                        violated_trans.append(t)
+                for trans in violated_trans:
+                    enabled_trans.remove(trans)
 
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans]
         # trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (t is not None and utils.__is_log_move(t, skip) and utils.__is_model_move(t, skip))]
@@ -457,3 +444,5 @@ def check_heuristic(state, ini_vec):
         if j < 0:
             return False
     return True
+
+

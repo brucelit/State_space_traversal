@@ -226,12 +226,16 @@ def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matri
     open_set = []
     ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [])
 
-    if check_set is not None:
-        for state in check_set:
-            state_to_check = get_state(state, ini_state.x, cost_vec, h)
-            if state_to_check is not None and state_to_check not in open_set:
-                open_set.append(state_to_check)
-        # print("check set", len(check_set), "open set:", len(open_set), "split:",len(split_lst))
+    # if check_set is not None:
+    #     for state in check_set:
+    #         state_to_check = get_state(state, ini_state.x, cost_vec, h)
+    #         if state_to_check is not None and state_to_check not in open_set:
+    #             open_set.append(state_to_check)
+    #     print("\ncheck set", ini_state.h, ini_state.x)
+    #     for i in open_set:
+    #         print(i.trust, i.f, i.g,i.h, i.pre_trans_lst)
+        # print("\ncheck set", len(open_set), len(check_set))
+
     open_set.append(ini_state)
     heapq.heapify(open_set)
     max_events = -1
@@ -257,9 +261,10 @@ def __search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matri
         if not curr.trust:
             # check if s is not already a splitpoint in K
             if max_events not in split_lst.values() and split_point not in temp_split:
-                print("check")
+                print("\nopen set", split_lst.values())
                 for i in open_set:
-                    print(i.trust, i.f)
+                    print(i.trust, i.f, i.g, i.h, i.pre_trans_lst)
+
                 # Add s to the maximum events explained to K
                 split_lst.update({split_point: max_events})
                 h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec2, incidence_matrix.a_matrix,
@@ -450,21 +455,17 @@ def get_state(state, ini_vec, cost_vec, h):
         # when the solution vector encounters -1, means no longer trustable
         if solution_vec[state.pre_trans_lst[i]] < 0:
             solution_vec[state.pre_trans_lst[i]] += 1
-            for j in range(0, len(state.pre_trans_lst)-i+1):
-                curr = curr.p
-            new_pre_trans_lst = state.pre_trans_lst[0:i-1]
-            if len(new_pre_trans_lst) > 1:
-                # g = get_g(cost_vec, new_pre_trans_lst)
-                new_h = get_h(h, cost_vec, new_pre_trans_lst)
+            if i > 1:
+                for j in range(0, len(state.pre_trans_lst)-i):
+                    curr = curr.p
+                g = get_g(cost_vec, curr.pre_trans_lst)
+                new_h = get_h(h, cost_vec, curr.pre_trans_lst)
                 # if h != curr.h:
-                #     print(new_pre_trans_lst, curr.pre_trans_lst)
-                #     print("h", h, new_h, curr.h)
-                g = get_g(cost_vec, new_pre_trans_lst)
-                # if g != curr.g:
-                #     print("g", g, curr.g)
-                # f = g + h
-                check_marking = SearchTuple(new_h + g, g, new_h, curr.m, curr.p, curr.t,
-                                            solution_vec, True, new_pre_trans_lst)
+                #     print("i:", i, "len pre", len(curr.pre_trans_lst), state.pre_trans_lst)
+                #     print("h", h, new_h, curr.h, curr.trust)
+                f = g + new_h
+                check_marking = SearchTuple(f, g, new_h, curr.m, curr.p, curr.t,
+                                            solution_vec, True, curr.pre_trans_lst)
                 return check_marking
     return None
 
@@ -479,4 +480,4 @@ def get_g(cost_vec, pre_tran_lst):
 def get_h(h, cost_vec, pre_tran_lst):
     for i in pre_tran_lst:
         h -= cost_vec[i]
-    return max(0, h)
+    return h

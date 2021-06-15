@@ -9,6 +9,7 @@ from pm4py.objects.petri.incidence_matrix import construct as inc_mat_construct
 
 
 # field_names = ['alignment', 'cost', 'queued_states', 'visited_states', 'traversed_arcs', 'h_recalculation', 'split', 'block_restart','restart', 'time']
+import astar_bidirection
 import astar_with_check
 
 field_names = ['alignment', 'cost', "visited_states", "queued_states", "traversed_arcs", "lp_solved","restart", "block_restart", "time"]
@@ -59,25 +60,25 @@ for case_index, case in enumerate(event_log):
         start_time = time.time()
         # align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
         # print(align)
-        align = astar_with_check.apply(case, model_net, model_im, model_fm, {})
+        align = astar_bidirection.apply(case, model_net, model_im, model_fm, {})
         align['time'] = time.time() - start_time
         # align['time'] = time.time() - start_time
         # print(case_index, align['restart'])
-        # with open('C:\data\c20c_astar2.csv', 'a') as f_object:
-        #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-        #     # Pass the dictionary as an argument to the Writerow()
-        #     dictwriter_object.writerow(align)
-        #     # Close the file object
-        #     f_object.close()
+        with open('C:\data\c20d_astar_bid.csv', 'a') as f_object:
+            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+            # Pass the dictionary as an argument to the Writerow()
+            dictwriter_object.writerow(align)
+            # Close the file object
+            f_object.close()
     except func_timeout.exceptions.FunctionTimedOut:
         print("timeout", id)
         align = {'alignment': "??", 'cost': "??"}
-        # with open('C:\data\c20c_astar2.csv', 'a') as f_object:
-        #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-        #     # Pass the dictionary as an argument to the Writerow()
-        #     dictwriter_object.writerow(align)
-        #     # Close the file object
-        #     f_object.close()
+        with open('C:\data\c20d_astar_bid.csv', 'a') as f_object:
+            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+            # Pass the dictionary as an argument to the Writerow()
+            dictwriter_object.writerow(align)
+            # Close the file object
+            f_object.close()
 
 
     # sync_net, sync_im, sync_fm, sync_index = synchronous_product.construct(trace_net, trace_im, trace_fm, model_net,

@@ -69,40 +69,21 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
         y_col += 1
 
     # additional constraints
-    set1 = set()
-    for i in range(split_lst[k-1]+1, split_lst[k]):
-        if trace_lst_sync[i] is not None:
-            # prob += pulp.LpAffineExpression([(var_y[k-1][trace_lst_sync[i]], 1),
-            #                                  (var_y[k-1][trace_lst_log[i]], 1)]) == 1
-            set1.add(trace_lst_sync[i])
-        if trace_lst_log[i] is not None:
-            set1.add(trace_lst_log[i])
-
-    set1.add(trace_lst_sync[-1])
-    set1.add(trace_lst_log[-1])
-    set2 = set1.union(set_model_move)
-    set3 = set([i for i in range(trans_num)])
-    set4 = set3.difference(set2)
-    for j in range(trans_num):
-        if j in set4:
-            prob += pulp.LpAffineExpression([(var_x[k][j], 1)]) == 0
+    # set1 = set()
+    # for i in range(split_lst[k-1]+1, split_lst[k]):
+    #     if trace_lst_sync[i] is not None:
+    #         set1.add(trace_lst_sync[i])
+    #     if trace_lst_log[i] is not None:
+    #         set1.add(trace_lst_log[i])
     #
-    # for j in range(1, k - 2):
-    #     set1 = set()
-    #     for i in range(split_lst[j] + 1, split_lst[j + 1]):
-    #         if trace_lst_sync[i] is not None:
-    #             set1.add(trace_lst_sync[i])
-    #         if trace_lst_log[i] is not None:
-    #             set1.add(trace_lst_log[i])
-    #     # set1.add(trace_lst_sync[-1])
-    #     # set1.add(trace_lst_log[-1])
-    #     set2 = set1.union(set_model_move)
-    #     set3 = set([i for i in range(trans_num)])
-    #     set4 = set3.difference(set2)
-    #     print("j:", j, "split", split_lst[j], split_lst[j+1], "set 4", len(set4), "trans num:", trans_num, "model",len(set_model_move))
-    #     for m in range(trans_num):
-    #         if m in set4:
-    #             prob += pulp.LpAffineExpression([(var_x[j][m], 1)]) == 0
+    # set1.add(trace_lst_sync[-1])
+    # set1.add(trace_lst_log[-1])
+    # set2 = set1.union(set_model_move)
+    # set3 = set([i for i in range(trans_num)])
+    # set4 = set3.difference(set2)
+    # for j in range(trans_num):
+    #     if j in set4:
+    #         prob += pulp.LpAffineExpression([(var_x[k][j], 1)]) == 0
 
     # add objective
     costs = np.array([cost_vec for i in range(2 * k + 2)])
@@ -144,7 +125,6 @@ def compute_exact_heuristic(ini_vec, fin_vec, inc_matrix, cost_vec):
     prob.solve(solver)
     dict1 = {'heuristic': int(pulp.value(prob.objective)),
              'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
-    # print("compute exact heuristic", dict1['var'], dict1['heuristic'])
     return dict1['heuristic'], dict1['var']
 
 
