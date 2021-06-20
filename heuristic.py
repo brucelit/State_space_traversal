@@ -11,6 +11,7 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                           consumption_matrix, split_dict, t_index, p_index,
                           trace_lst_log, trace_lst_sync, set_model_move):
     k = len(split_dict) - 1
+
     split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
     split_lst = list(split_dict.values())[1:]
     split_lst.append(len(trace_lst_log))
@@ -47,7 +48,8 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
         for b in range(1, a):
             var2 = var2 + var_x[b] + var_y[b]
         var2 = var2 + var_x[0]
-        ct2 = np.dot(incidence_matrix, var2) + np.dot(consumption_matrix, var_y[a])
+        # ct2 = np.matmul(incidence_matrix, var2) + np.matmul(consumption_matrix, var_y[a])
+        ct2 = incidence_matrix @ var2 + consumption_matrix @ var_y[a]
         for j in range(place_num):
             prob.addConstraint(
                 pulp.LpConstraint(
@@ -93,9 +95,11 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                            for i in range(2 * k + 2))
     prob.setObjective(objective)
 
-    path_to_cplex = r"E:\Program Files\IBM\ILOG\CPLEX_Studio201\cplex\bin\x64_win64\cplex.exe"
-    solver = pulp.CPLEX_CMD(path=path_to_cplex)
-    prob.solve(solver)
+    # path_to_cplex = r"E:\Program Files\IBM\ILOG\CPLEX_Studio201\cplex\bin\x64_win64\cplex.exe"
+    # solver = pulp.CPLEX_CMD(path=path_to_cplex)
+    # prob.solve(solver)
+
+    prob.solve()
     if pulp.LpStatus[prob.status] == "Optimal":
         dict1 = {'heuristic': int(pulp.value(prob.objective)),
                  'var_x': [[int(pulp.value(var_x[i][j])) for j in range(trans_num)] for i in range(k + 1)],
@@ -120,14 +124,13 @@ def compute_exact_heuristic(ini_vec, fin_vec, inc_matrix, cost_vec):
                 e=var1[j],
                 sense=pulp.LpConstraintEQ,
                 rhs=marking_diff[j]))
-    path_to_cplex = r"E:\Program Files\IBM\ILOG\CPLEX_Studio201\cplex\bin\x64_win64\cplex.exe"
-    solver = pulp.CPLEX_CMD(path=path_to_cplex)
-    prob.solve(solver)
+    prob.solve()
     dict1 = {'heuristic': int(pulp.value(prob.objective)),
              'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
     return dict1['heuristic'], dict1['var']
 
 
+# computer estimated heuristic from heuristics of previous marking
 def compute_estimate_heuristic(h_score, solution_x, t_index, cost_vec):
     result_aux = [0 for x in cost_vec]
     not_trust = 1

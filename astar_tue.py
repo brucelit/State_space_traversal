@@ -5,7 +5,6 @@ import re
 import numpy as np
 from copy import deepcopy, copy
 from pm4py.objects.petri import align_utils as utils
-from pm4py.objects.petri.incidence_matrix import construct as inc_mat_construct
 from pm4py.objects.petri.synchronous_product import construct_cost_aware, construct
 from pm4py.objects.petri.utils import construct_trace_net_cost_aware, decorate_places_preset_trans, \
     decorate_transitions_prepostset
@@ -179,7 +178,7 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, tr
     decorate_transitions_prepostset(sync_prod)
     decorate_places_preset_trans(sync_prod)
 
-    incidence_matrix = inc_mat_construct(sync_prod)
+    incidence_matrix = construct(sync_prod)
     split_dict = {}
 
     # violate = list(violate_lst.values())
@@ -248,7 +247,7 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
         curr = heapq.heappop(open_set)
         # final marking reached
         if curr.m == fin:
-            return reconstruct_alignment(curr, visited, queued, traversed, restart, block_restart,
+            return reconstruct_alignment(curr, visited, queued, traversed, restart, block_restart, len(trace_log),
                                                  ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                                                  lp_solved=lp_solved)
 
@@ -257,7 +256,6 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
 
             # check if s is not already a splitpoint in K
             if max_events not in split_lst.values() and split_point not in temp_split:
-                print("split", split_lst)
                 # Add s to the maximum events explained to K
                 split_lst.update({split_point: max_events})
                 h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec2, incidence_matrix.a_matrix,
@@ -298,7 +296,6 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
 
         closed.add(curr.m)
         new_max_events, last_sync = get_max_events(curr)
-        print("new max", new_max_events, max_events)
         if new_max_events > max_events and last_sync is not None and new_max_events not in split_lst.values():
             old_max = max_events
             max_events = new_max_events
@@ -460,7 +457,7 @@ def check_heuristic(state, ini_vec):
     return True
 
 
-def reconstruct_alignment(state, visited, queued, traversed, restart, block_restart=None, ret_tuple_as_trans_desc=False, lp_solved=0):
+def reconstruct_alignment(state, visited, queued, traversed, restart, block_restart, trace_length, ret_tuple_as_trans_desc=False, lp_solved=0):
     alignment = list()
     if state.p is not None and state.t is not None:
         parent = state.p
@@ -481,7 +478,8 @@ def reconstruct_alignment(state, visited, queued, traversed, restart, block_rest
             'traversed_arcs': traversed,
             'lp_solved': lp_solved,
             'restart': restart,
-            'block_restart': block_restart
+            'block_restart': block_restart,
+            'trace_length': trace_length
            }
 
 
@@ -505,3 +503,82 @@ def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
     for t in cost_function.keys():
         cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
     return ini_vec, fini_vec, cost_vec
+
+
+class IncidenceMatrix(object):
+
+    def __init__(self, net):
+        self.__A, self.__B, self.__place_indices, self.__transition_indices = self.__construct_matrix(net)
+
+    def encode_marking(self, marking):
+        x = [0 for i in range(len(self.places))]
+        for p in marking:
+            x[self.places[p]] = marking[p]
+        return x
+
+    def __get_a_matrix(self):
+        return self.__A
+
+    def __get_b_matrix(self):
+        return self.__B
+
+    # def __get_rule_l(self):
+    #     return self.__rule_l
+    #
+    # def __get_rule_r(self):
+    #     return self.__rule_r
+
+    def __get_transition_indices(self):
+        return self.__transition_indices
+
+    def __get_place_indices(self):
+        return self.__place_indices
+
+    def __construct_matrix(self, net):
+        self.matrix_built = True
+        p_index, t_index = {}, {}
+        places = sorted([x for x in net.places], key=lambda x: (str(x.name), id(x)))
+        transitions = sorted([x for x in net.transitions], key=lambda x: (str(x.name), id(x)))
+        rule_l = {}
+        rule_r = {}
+
+        for p in places:
+            p_index[p] = len(p_index)
+        for t in transitions:
+            t_index[t] = len(t_index)
+        p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name, reverse=True)
+        t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name, reverse=True)
+        new_p_index = dict()
+        for i in range(len(p_index_sort)):
+            new_p_index[p_index_sort[i][0]] = i
+        new_t_index = dict()
+        for i in range(len(t_index_sort)):
+            new_t_index[t_index_sort[i][0]] = i
+
+        a_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
+        b_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
+        count = 0
+        for p in net.places:
+            rule_l[count] = set()
+            rule_r[count] = set()
+            for a in p.in_arcs:
+                a_matrix[new_p_index[p]][new_t_index[a.source]] += 1
+                rule_l[count].add(a.source.label)
+            for a in p.out_arcs:
+                a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
+                b_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
+                rule_r[count].add(a.target.label)
+            # if len(rule_l[count]) == 0 or len(rule_r[count]) == 0:
+            #     continue
+            # count += 1
+        return a_matrix, b_matrix, new_p_index, new_t_index
+
+    a_matrix = property(__get_a_matrix)
+    b_matrix = property(__get_b_matrix)
+    places = property(__get_place_indices)
+    transitions = property(__get_transition_indices)
+    # rule_l = property(__get_rule_l)
+    # rule_r = property(__get_rule_r)
+
+def construct(net):
+    return IncidenceMatrix(net)

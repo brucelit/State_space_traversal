@@ -1,19 +1,3 @@
-'''
-    This file is part of PM4Py (More Info: https://pm4py.fit.fraunhofer.de).
-
-    PM4Py is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    PM4Py is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with PM4Py.  If not, see <https://www.gnu.org/licenses/>.
-'''
 """
 This module contains code that allows us to compute alignments on the basis of a regular A* search on the state-space
 of the synchronous product net of a trace and a Petri net.
@@ -28,6 +12,7 @@ References
       ATAED@Petri Nets/ACSD 2017: 6-20. `http://ceur-ws.org/Vol-1847/paper01.pdf`_.
 
 """
+import heuristic
 import heapq
 import sys
 import time
@@ -36,12 +21,11 @@ from enum import Enum
 
 import numpy as np
 
-from pm4py import util as pm4pyutil
 from pm4py.objects.log import obj as log_implementation
-from pm4py.objects.petri import align_utils as utils
-from pm4py.objects.petri.incidence_matrix import construct as inc_mat_construct
-from pm4py.objects.petri.synchronous_product import construct_cost_aware, construct
-from pm4py.objects.petri.utils import construct_trace_net_cost_aware, decorate_places_preset_trans, \
+from pm4py.objects.petri_net.utils import align_utils as utils
+from pm4py.objects.petri_net.utils.incidence_matrix import construct as inc_mat_construct
+from pm4py.objects.petri_net.utils.synchronous_product import construct_cost_aware, construct
+from pm4py.objects.petri_net.utils.petri_utils import construct_trace_net_cost_aware, decorate_places_preset_trans, \
     decorate_transitions_prepostset
 from pm4py.util import exec_utils
 from pm4py.util.constants import PARAMETER_CONSTANT_ACTIVITY_KEY
@@ -63,6 +47,7 @@ class Parameters(Enum):
     PARAMETER_VARIANT_DELIMITER = "variant_delimiter"
     ACTIVITY_KEY = PARAMETER_CONSTANT_ACTIVITY_KEY
     VARIANTS_IDX = "variants_idx"
+    RETURN_SYNC_COST_FUNCTION = "return_sync_cost_function"
 
 
 PARAM_TRACE_COST_FUNCTION = Parameters.PARAM_TRACE_COST_FUNCTION.value
@@ -136,7 +121,7 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
 
     if trace_cost_function is None:
         trace_cost_function = list(
-            map(lambda e: utils.STD_MODEL_LOG_MOVE_COST, trace))
+            map(lambda e: 1, trace))
         parameters[Parameters.PARAM_TRACE_COST_FUNCTION] = trace_cost_function
 
     if model_cost_function is None:
@@ -145,10 +130,10 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
         sync_cost_function = dict()
         for t in petri_net.transitions:
             if t.label is not None:
-                model_cost_function[t] = utils.STD_MODEL_LOG_MOVE_COST
+                model_cost_function[t] = 1
                 sync_cost_function[t] = 0
             else:
-                model_cost_function[t] = 1
+                model_cost_function[t] = 0
         parameters[Parameters.PARAM_MODEL_COST_FUNCTION] = model_cost_function
         parameters[Parameters.PARAM_SYNC_COST_FUNCTION] = sync_cost_function
 
@@ -162,6 +147,7 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
                                                                                      activity_key=activity_key)
 
     alignment = apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_im, trace_fm, parameters)
+
     return alignment
 
 
@@ -282,7 +268,7 @@ def apply_from_variants_list_petri_string(var_list, petri_net_string, parameters
     if parameters is None:
         parameters = {}
 
-    from pm4py.objects.petri.importer.variants import pnml as petri_importer
+    from pm4py.objects.petri_net.importer.variants import pnml as petri_importer
 
     petri_net, initial_marking, final_marking = petri_importer.import_petri_from_string(petri_net_string)
 
@@ -351,8 +337,10 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
     trace_net_costs = exec_utils.get_param_value(Parameters.PARAM_TRACE_NET_COSTS, parameters, None)
 
     if trace_cost_function is None or model_cost_function is None or sync_cost_function is None:
-        sync_prod, sync_initial_marking, sync_final_marking = construct(trace_net, trace_im,
-                                                                        trace_fm, petri_net,
+        sync_prod, sync_initial_marking, sync_final_marking = construct(trace_net,
+                                                                        trace_im,
+                                                                        trace_fm,
+                                                                        petri_net,
                                                                         initial_marking,
                                                                         final_marking,
                                                                         utils.SKIP)
@@ -371,12 +359,24 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
     max_align_time_trace = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
                                                       sys.maxsize)
 
-    return apply_sync_prod(sync_prod, sync_initial_marking, sync_final_marking, cost_function,
+    alignment = apply_sync_prod(sync_prod, sync_initial_marking, sync_final_marking, cost_function,
                            utils.SKIP, ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                            max_align_time_trace=max_align_time_trace)
 
+    return_sync_cost = exec_utils.get_param_value(Parameters.RETURN_SYNC_COST_FUNCTION, parameters, False)
+    if return_sync_cost:
+        # needed for the decomposed alignments (switching them from state_equation_less_memory)
+        return alignment, cost_function
 
-def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, skip, ret_tuple_as_trans_desc=False,
+    return alignment
+
+
+def apply_sync_prod(sync_prod,
+                    initial_marking,
+                    final_marking,
+                    cost_function,
+                    skip,
+                    ret_tuple_as_trans_desc=False,
                     max_align_time_trace=sys.maxsize):
     """
     Performs the basic alignment search on top of the synchronous product net, given a cost function and skip-symbol
@@ -394,41 +394,37 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, sk
     dictionary : :class:`dict` with keys **alignment**, **cost**, **visited_states**, **queued_states**
     and **traversed_arcs**
     """
-    return __search(sync_prod, initial_marking, final_marking, cost_function, skip,
-                    ret_tuple_as_trans_desc=ret_tuple_as_trans_desc, max_align_time_trace=max_align_time_trace)
+    return __search(sync_prod,
+                    initial_marking,
+                    final_marking,
+                    cost_function,
+                    skip,
+                    ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
+                    max_align_time_trace=max_align_time_trace)
 
 
-def __search(sync_net, ini, fin, cost_function, skip, ret_tuple_as_trans_desc=False,
+def __search(sync_net,
+             ini,
+             fin,
+             cost_function,
+             skip,
+             ret_tuple_as_trans_desc=False,
              max_align_time_trace=sys.maxsize):
     start_time = time.time()
 
     decorate_transitions_prepostset(sync_net)
     decorate_places_preset_trans(sync_net)
+
     incidence_matrix = inc_mat_construct(sync_net)
     ini_vec, fin_vec, cost_vec = utils.__vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
-
     closed = set()
-
-    a_matrix = np.asmatrix(incidence_matrix.a_matrix).astype(np.float64)
-    g_matrix = -np.eye(len(sync_net.transitions))
-    h_cvx = np.matrix(np.zeros(len(sync_net.transitions))).transpose()
     cost_vec = [x * 1.0 for x in cost_vec]
 
-    use_cvxopt = False
-    if lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN or lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP:
-        use_cvxopt = True
-
-    if use_cvxopt:
-        # not available in the latest version of PM4Py
-        from cvxopt import matrix
-
-        a_matrix = matrix(a_matrix)
-        g_matrix = matrix(g_matrix)
-        h_cvx = matrix(h_cvx)
-        cost_vec = matrix(cost_vec)
-
-    x, h = np.array([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1,
-0, 1, 1, 1, 0, 1, 1,]), 330000
+    # h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+    #     #                                                    ini,
+    #     #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+    #     #                                                    use_cvxopt=use_cvxopt)
+    h, x = heuristic.compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
     open_set = [ini_state]
     heapq.heapify(open_set)
@@ -436,6 +432,7 @@ def __search(sync_net, ini, fin, cost_function, skip, ret_tuple_as_trans_desc=Fa
     queued = 0
     traversed = 0
     lp_solved = 1
+
     trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
 
     while not len(open_set) == 0:
@@ -456,17 +453,17 @@ def __search(sync_net, ini, fin, cost_function, skip, ret_tuple_as_trans_desc=Fa
                 current_marking = curr.m
                 continue
 
-            h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
-                                                               incidence_matrix, curr.m,
-                                                               fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
-                                                               use_cvxopt=use_cvxopt)
-            lp_solved += 1
+            # h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+            #                                                    incidence_matrix, curr.m,
+            #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+            #                                                    use_cvxopt=use_cvxopt)
 
-            # 11/10/19: shall not a state for which we compute the exact heuristics be
-            # by nature a trusted solution?
+            h, x = heuristic.compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
+                                           fin_vec,
+                                           incidence_matrix.a_matrix,
+                                           cost_vec)
+            lp_solved += 1
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
-            # 11/10/2019 (optimization ZA) heappushpop is slightly more efficient than pushing
-            # and popping separately
             curr = heapq.heappushpop(open_set, tp)
             current_marking = curr.m
 
@@ -483,7 +480,10 @@ def __search(sync_net, ini, fin, cost_function, skip, ret_tuple_as_trans_desc=Fa
         # (underestimation of the remaining cost) is 0. Low-hanging fruits
         if curr.h < 0.01:
             if current_marking == fin:
-                return utils.__reconstruct_alignment(curr, visited, queued, traversed,
+                return utils.__reconstruct_alignment(curr,
+                                                     visited,
+                                                     queued,
+                                                     traversed,
                                                      ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                                                      lp_solved=lp_solved)
 
@@ -491,7 +491,6 @@ def __search(sync_net, ini, fin, cost_function, skip, ret_tuple_as_trans_desc=Fa
         visited += 1
 
         enabled_trans = copy(trans_empty_preset)
-
         for p in current_marking:
             for t in p.ass_trans:
                 if t.sub_marking <= current_marking:
@@ -499,9 +498,8 @@ def __search(sync_net, ini, fin, cost_function, skip, ret_tuple_as_trans_desc=Fa
 
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (
                 t is not None and utils.__is_log_move(t, skip) and utils.__is_model_move(t, skip))]
-        enabled_trans = sorted(sorted(trans_to_visit_with_cost, key=lambda k: k[1]),key=lambda k: k[0].label)
 
-        for t, cost in enabled_trans:
+        for t, cost in trans_to_visit_with_cost:
             traversed += 1
             new_marking = utils.add_markings(current_marking, t.add_marking)
 

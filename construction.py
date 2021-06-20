@@ -1,6 +1,70 @@
-from pm4py.objects.petri.obj import PetriNet, Marking
-from pm4py.objects.petri.utils import add_arc_from_to
-from pm4py.objects.petri import properties
+from collections import Counter
+
+from pm4py.objects.petri_net.obj import PetriNet, Marking
+from pm4py.objects.petri_net.utils.petri_utils import add_arc_from_to
+from pm4py.objects.petri_net import properties
+
+# compute the split point before search
+def precompute_forward(trace_lst, ic):
+    dict_l = ic.rule_l
+    dict_r = ic.rule_r
+    i = 1
+    rule_lst = [i for i in range(0, len(dict_r))]
+    violate_lst = {}
+    while i < len(trace_lst):
+        trace_prefix = Counter(trace_lst[0:i])
+        for j in rule_lst:
+            count_l = 0
+            count_r = 0
+            for k, v in trace_prefix.items():
+                if k in dict_l[j]:
+                    count_l += v
+                if k in dict_r[j]:
+                    count_r += v
+            if count_l < count_r:
+                rule_lst.remove(j)
+                violate_lst[trace_lst[0:i][-1]] = i
+                continue
+        i += 1
+    lst = list(violate_lst.values())
+    lst2 = []
+    for i in range(len(lst) - 1):
+        if lst[i] + 1 == lst[i + 1]:
+            lst2.append(lst[i])
+        i += 1
+    v2 = {key: val for key, val in violate_lst.items() if val not in lst2}
+    return v2
+
+# compute the split point before search
+def precompute_backward(trace_lst, ic):
+    dict_r = ic.rule_l
+    dict_l = ic.rule_r
+    i = 1
+    rule_lst = [i for i in range(0, len(dict_r))]
+    violate_lst = {}
+    while i < len(trace_lst):
+        trace_prefix = Counter(trace_lst[0:i])
+        for j in rule_lst:
+            count_l = 0
+            count_r = 0
+            for k, v in trace_prefix.items():
+                if k in dict_l[j]:
+                    count_l += v
+                if k in dict_r[j]:
+                    count_r += v
+            if count_l < count_r:
+                rule_lst.remove(j)
+                violate_lst[trace_lst[0:i][-1]] = i
+                continue
+        i += 1
+    lst = list(violate_lst.values())
+    lst2 = []
+    for i in range(len(lst) - 1):
+        if lst[i] + 1 == lst[i + 1]:
+            lst2.append(lst[i])
+        i += 1
+    v2 = {key: val for key, val in violate_lst.items() if val not in lst2}
+    return v2
 
 
 def construct_cost_aware_forward(pn1, im1, fm1, pn2, im2, fm2, skip, pn1_costs, pn2_costs, sync_costs):
