@@ -38,7 +38,6 @@ PARAM_SYNC_COST_FUNCTION = Parameters.PARAM_SYNC_COST_FUNCTION.value
 def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
     """
     Performs the basic alignment search, given a trace and a net.
-
     Parameters
     ----------
     trace: :class:`list` input trace, assumed to be a list of events (i.e. the code will use the activity key
@@ -53,7 +52,6 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
         Parameters.PARAM_SYNC_COST_FUNCTION: :class:`dict` (parameter) mapping of each transition in the model to corresponding
         synchronous costs
         Parameters.ACTIVITY_KEY: :class:`str` (parameter) key to use to identify the activity described by the events
-
     Returns
     -------
     dictionary: `dict` with keys **alignment**, **cost**, **visited_states**, **queued_states** and **traversed_arcs**
@@ -99,7 +97,6 @@ def apply(trace, petri_net, initial_marking, final_marking, parameters=None):
 def apply_from_variant(variant, petri_net, initial_marking, final_marking, parameters=None):
     """
     Apply the alignments from the specification of a single variant
-
     Parameters
     -------------
     variant
@@ -112,7 +109,6 @@ def apply_from_variant(variant, petri_net, initial_marking, final_marking, param
         Final marking
     parameters
         Parameters of the algorithm (same as 'apply' method, plus 'variant_delimiter' that is , by default)
-
     Returns
     ------------
     dictionary: `dict` with keys **alignment**, **cost**, **visited_states**, **queued_states** and **traversed_arcs**

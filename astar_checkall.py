@@ -5,7 +5,6 @@ import re
 import numpy as np
 from copy import deepcopy, copy
 from pm4py.objects.petri import align_utils as utils
-# from pm4py.objects.petri.incidence_matrix import construct as inc_mat_construct
 from pm4py.objects.petri.synchronous_product import construct_cost_aware, construct
 from pm4py.objects.petri.utils import construct_trace_net_cost_aware, decorate_places_preset_trans, \
     decorate_transitions_prepostset
@@ -210,7 +209,7 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
              restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log,
              ret_tuple_as_trans_desc=False, use_init=False, open_set=None):
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
-
+    check_set = open_set
     closed = set()
     cost_vec = [x * 1.0 for x in cost_vec]
     cost_vec2 = [x * 1.0 for x in cost_vec]
@@ -231,6 +230,11 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
     open_set = []
     order = 0
     ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], order)
+    if check_set is not None:
+        for state in check_set:
+            state_to_check = get_state(state, ini_state.x, cost_vec, h)
+            if state_to_check is not None and state_to_check not in open_set:
+                open_set.append(state_to_check)
     open_set.append(ini_state)
     heapq.heapify(open_set)
     max_events = -1
@@ -313,14 +317,14 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
                     enabled_trans.add(t)
 
         # add model move restriction to the transitions selected
-        if curr.t is not None:
-            if curr.t.label[1] == ">>":
-                violated_trans = []
-                for t in enabled_trans:
-                    if t.label[0] == ">>":
-                        violated_trans.append(t)
-                for trans in violated_trans:
-                    enabled_trans.remove(trans)
+        # if curr.t is not None:
+        #     if curr.t.label[1] == ">>":
+        #         violated_trans = []
+        #         for t in enabled_trans:
+        #             if t.label[0] == ">>":
+        #                 violated_trans.append(t)
+        #         for trans in violated_trans:
+        #             enabled_trans.remove(trans)
 
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans]
         # trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (t is not None and utils.__is_log_move(t, skip) and utils.__is_model_move(t, skip))]
@@ -583,3 +587,39 @@ class IncidenceMatrix(object):
 
 def construct(net):
     return IncidenceMatrix(net)
+
+def get_state(state, ini_vec, cost_vec, h):
+    solution_vec = deepcopy(ini_vec)
+    curr = state
+    for i in range(len(state.pre_trans_lst)):
+        solution_vec[state.pre_trans_lst[i]] -= 1
+
+        # when the solution vector encounters -1, means no longer trustable
+        if solution_vec[state.pre_trans_lst[i]] < 0:
+            solution_vec[state.pre_trans_lst[i]] += 1
+            if i > 1:
+                for j in range(0, len(state.pre_trans_lst)-i):
+                    curr = curr.p
+                g = get_g(cost_vec, curr.pre_trans_lst)
+                new_h = get_h(h, cost_vec, curr.pre_trans_lst)
+                # if h != curr.h:
+                #     print("i:", i, "len pre", len(curr.pre_trans_lst), state.pre_trans_lst)
+                #     print("h", h, new_h, curr.h, curr.trust)
+                f = g + new_h
+                check_marking = SearchTuple(f, g, new_h, curr.m, curr.p, curr.t,
+                                            solution_vec, True, curr.pre_trans_lst,curr.order)
+                return check_marking
+    return None
+
+
+def get_g(cost_vec, pre_tran_lst):
+    g = 0
+    for i in pre_tran_lst:
+        g += cost_vec[i]
+    return g
+
+
+def get_h(h, cost_vec, pre_tran_lst):
+    for i in pre_tran_lst:
+        h -= cost_vec[i]
+    return h

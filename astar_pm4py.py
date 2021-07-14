@@ -459,9 +459,9 @@ def __search(sync_net,
             #                                                    use_cvxopt=use_cvxopt)
 
             h, x = heuristic.compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
-                                           fin_vec,
-                                           incidence_matrix.a_matrix,
-                                           cost_vec)
+                                                     fin_vec,
+                                                     incidence_matrix.a_matrix,
+                                                     cost_vec)
             lp_solved += 1
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
             curr = heapq.heappushpop(open_set, tp)
