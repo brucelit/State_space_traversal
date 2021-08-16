@@ -321,7 +321,7 @@ def search(sync_net,
                                     restart, block_restart, visited, queued, traversed, lp_solved, trace_sync,
                                     trace_log,
                                     ret_tuple_as_trans_desc=False,
-                                    use_init=True, open_set=open_set)
+                                    use_init=True)
 
             # compute the true heuristic
             h, x = compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
