@@ -42,14 +42,14 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
 
     # constraint 2
     a = 1
+    start_time1 = time.time()
     while a < k + 1:
         cons_two = np.array(ini_vec)
         var2 = np.array([0 for i in cost_vec])
         for b in range(1, a):
             var2 = var2 + var_x[b] + var_y[b]
         var2 = var2 + var_x[0]
-        # ct2 = np.matmul(incidence_matrix, var2) + np.matmul(consumption_matrix, var_y[a])
-        ct2 = incidence_matrix @ var2 + consumption_matrix @ var_y[a]
+        ct2 = np.dot(incidence_matrix, var2) + np.dot(consumption_matrix, var_y[a])
         for j in range(place_num):
             prob.addConstraint(
                 pulp.LpConstraint(
@@ -57,7 +57,7 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                     sense=pulp.LpConstraintGE,
                     rhs=-1 * cons_two[j]))
         a += 1
-
+    print("cal time sum", k, time.time()-start_time1)
     # constraint 5,6
     y_col = 1
     prob += np.sum(var_y[0]) == 0

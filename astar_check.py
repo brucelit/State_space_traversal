@@ -13,7 +13,7 @@ from pm4py.util import exec_utils
 from pm4py.util.constants import PARAMETER_CONSTANT_ACTIVITY_KEY
 from pm4py.util.xes_constants import DEFAULT_NAME_KEY
 from pm4py.util import variants_util
-from heuristic import compute_ini_heuristic, compute_exact_heuristic
+from heuristic_past import compute_ini_heuristic, compute_exact_heuristic
 
 
 class Parameters(Enum):

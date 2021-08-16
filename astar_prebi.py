@@ -15,7 +15,7 @@ from pm4py.util.xes_constants import DEFAULT_NAME_KEY
 from pm4py.util import variants_util
 
 from construction import construct_cost_aware_backward, construct_cost_aware_forward
-from heuristic import compute_ini_heuristic, compute_exact_heuristic
+from heuristic_past import compute_ini_heuristic, compute_exact_heuristic
 
 
 class Parameters(Enum):

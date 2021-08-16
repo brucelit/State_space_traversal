@@ -12,7 +12,7 @@ References
       ATAED@Petri Nets/ACSD 2017: 6-20. `http://ceur-ws.org/Vol-1847/paper01.pdf`_.
 
 """
-import heuristic
+import heuristic_past
 import heapq
 import sys
 import time
@@ -424,7 +424,7 @@ def __search(sync_net,
     #     #                                                    ini,
     #     #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
     #     #                                                    use_cvxopt=use_cvxopt)
-    h, x = heuristic.compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
+    h, x = heuristic_past.compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
     open_set = [ini_state]
     heapq.heapify(open_set)
@@ -458,10 +458,10 @@ def __search(sync_net,
             #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
             #                                                    use_cvxopt=use_cvxopt)
 
-            h, x = heuristic.compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
-                                           fin_vec,
-                                           incidence_matrix.a_matrix,
-                                           cost_vec)
+            h, x = heuristic_past.compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
+                                                          fin_vec,
+                                                          incidence_matrix.a_matrix,
+                                                          cost_vec)
             lp_solved += 1
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
             curr = heapq.heappushpop(open_set, tp)
