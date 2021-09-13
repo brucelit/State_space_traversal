@@ -8,12 +8,12 @@ from gurobipy import GRB
 
 
 def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
-                          consumption_matrix, split_dict, t_index, p_index,
-                          trace_lst_log, trace_lst_sync, set_model_move):
-    k = len(split_dict) - 1
+                          consumption_matrix, split_lst, t_index, p_index,
+                          trace_lst_log, trace_lst_sync, set_model_move=set()):
+    k = len(split_lst) - 1
 
-    split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
-    split_lst = list(split_dict.values())[1:]
+    # split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
+    split_lst = sorted(split_lst[1:])
     split_lst.append(len(trace_lst_log))
     place_num = len(p_index)
     trans_num = len(t_index)
@@ -43,10 +43,9 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
     # constraint 2
     a = 1
     ct2_1 = np.dot(incidence_matrix, var_x[0])
-    # ct2_2 = np.dot(incidence_matrix, np.array([0 for i in cost_vec]))
+    cons_two = np.array(ini_vec)
     # start_time1 = time.time()
     while a < k + 1:
-        cons_two = np.array(ini_vec)
         for b in range(1, a):
             if b == a-1:
                 var2 = var_x[b] + var_y[b]
@@ -59,7 +58,6 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                     sense=pulp.LpConstraintGE,
                     rhs=-1 * cons_two[j]))
         a += 1
-    # print("cal time sum", k, time.time()-start_time1)
 
     # constraint 5,6
     y_col = 1
@@ -97,13 +95,7 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
                            for j in range(trans_num)
                            for i in range(2 * k + 2))
     prob.setObjective(objective)
-
-    # path_to_cplex = r"E:\Program Files\IBM\ILOG\CPLEX_Studio201\cplex\bin\x64_win64\cplex.exe"
-    # solver = pulp.CPLEX_CMD(path=path_to_cplex)
-    # prob.solve(solver)
-
     prob.solve()
-
     if pulp.LpStatus[prob.status] == "Optimal":
         dict1 = {'heuristic': int(pulp.value(prob.objective)),
                  'var_x': [[int(pulp.value(var_x[i][j])) for j in range(trans_num)] for i in range(k + 1)],
@@ -117,22 +109,33 @@ def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
 
 # compute heuristic of marking m' from marking m
 def compute_exact_heuristic(ini_vec, fin_vec, inc_matrix, cost_vec):
+    # marking_diff = np.asarray(fin_vec) - np.asarray(ini_vec)
+    # prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
+    # var = [pulp.LpVariable(f'x{i}', lowBound=0, cat=pulp.LpInteger)
+    #        for i in range(len(cost_vec))]
+    # prob += pulp.lpDot(cost_vec, var)
+    # var1 = np.dot(inc_matrix, np.array(var))
+    # for j in range(len(ini_vec)):
+    #     prob.addConstraint(
+    #         pulp.LpConstraint(
+    #             e=var1[j],
+    #             sense=pulp.LpConstraintEQ,
+    #             rhs=marking_diff[j]))
+    # prob.solve()
+    # dict1 = {'heuristic': int(pulp.value(prob.objective)),
+    #          'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
+    # return dict1['heuristic'], dict1['var']
     marking_diff = np.asarray(fin_vec) - np.asarray(ini_vec)
-    prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
-    var = [pulp.LpVariable(f'x{i}', lowBound=0, cat=pulp.LpInteger)
-           for i in range(len(cost_vec))]
-    prob += pulp.lpDot(cost_vec, var)
-    var1 = np.dot(inc_matrix, np.array(var))
-    for j in range(len(ini_vec)):
-        prob.addConstraint(
-            pulp.LpConstraint(
-                e=var1[j],
-                sense=pulp.LpConstraintEQ,
-                rhs=marking_diff[j]))
-    prob.solve()
-    dict1 = {'heuristic': int(pulp.value(prob.objective)),
-             'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
-    return dict1['heuristic'], dict1['var']
+    ineq = np.zeros(len(inc_matrix))
+    # ineq2 = [i for i in range(1, len(ini_vec)+1)]
+    lp = lp_maker(cost_vec, inc_matrix, marking_diff, ineq, setminim=1)
+    o1 = np.ones(len(cost_vec))
+    lpsolve('set_int', lp, o1)
+    lpsolve("solve", lp)
+    obj = lpsolve('get_objective', lp)
+    var = lpsolve('get_variables', lp)[0]
+    lpsolve('delete_lp',lp)
+    return obj, var
 
 
 # computer estimated heuristic from heuristics of previous marking
