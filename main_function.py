@@ -10,7 +10,7 @@ import astar_precompute
 from csv import DictWriter
 from pm4py.objects.log.importer.xes import importer as xes_importer
 from pm4py.objects.petri_net.importer.variants.pnml import import_net
-
+from pm4py.algo.conformance.alignments.petri_net.variants import state_equation_a_star
 import astar_tue_reverse
 from construction import precompute_forward, precompute_backward
 import warnings
@@ -31,7 +31,10 @@ def search():
                    "lp_solved",
                    "restart",
                    "trace_length",
-                   "time"]
+                   "time_sum",
+                   "time_h",
+                   "time_diff"
+                   ]
 
     # This incidence matrix is used to help precompute the split point
     # incidence_matrix = astar_precompute.construct(model_net)
@@ -48,8 +51,6 @@ def search():
         total_lst.append(lst1)
         start_time = time.time()
         print("case index:", case_index, "\n")
-        # if case_index != 2:
-        #     continue
         try:
             '''
             # Choose one of the following align, then save the results in csv file for further analysis
@@ -59,7 +60,7 @@ def search():
             '''
             # align = astar_tue.apply(case, model_net, model_im, model_fm)
             # align = astar_tue_reverse.apply(case, model_net, model_im, model_fm)
-
+            #
             '''
             # Choice 2: the algorithm from in paper "Improving Alignment Computation
             # using Model-based Preprocessing" from Eindhoven University
@@ -100,12 +101,52 @@ def search():
             # align = astar_checkonly.apply(case, model_net, model_im, model_fm)
 
             # Choice 7: the algorithm from cache
-            align = astar_cache.apply(case, model_net, model_im, model_fm)
+            # align = astar_cache.apply(case, model_net, model_im, model_fm)
+
+            # Choice 8: the algorithm from pm4py
+            align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
 
             # save the running time for this conformance checking
-            align['time'] = time.time() - start_time
+            print(align['cost'])
             # save the conformance checking results as csv file
-            with open('F:\Thesis\data\c19_astar_cache\c19_astar_cache3.csv', 'a') as f_object:
+    #         with open('F:\Thesis\data\c19_astar_tue\c19_astar_tue102.csv', 'a') as f_object:
+    #             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+    #             # Pass the dictionary as an argument to the Writerow()
+    #             dictwriter_object.writerow(align)
+    #             # Close the file object
+    #             f_object.close()
+    #
+    #     except func_timeout.exceptions.FunctionTimedOut:
+    #         print("timeout", id)
+    #         align = {'alignment': "??", 'cost': "??"}
+    #         with open('F:\Thesis\data\c19_astar_tue\c19_astar_tue102.csv', 'a') as f_object:
+    #             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+    #             # Pass the dictionary as an argument to the Writerow()
+    #             dictwriter_object.writerow(align)
+    #             # Close the file object
+    #             f_object.close()
+    # df = pd.read_csv('F:\Thesis\data\c19_astar_tue\c19_astar_tue102.csv')
+    # df.to_csv('F:\Thesis\data\c19_astar_tue\c19_astar_tue102.csv', index=False)
+    #         with open('F:\Thesis\data\c19_astar_cache\c19_astar_cache103.csv', 'a') as f_object:
+    #             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+    #             # Pass the dictionary as an argument to the Writerow()
+    #             dictwriter_object.writerow(align)
+    #             # Close the file object
+    #             f_object.close()
+    #
+    #     except func_timeout.exceptions.FunctionTimedOut:
+    #         print("timeout", id)
+    #         align = {'alignment': "??", 'cost': "??"}
+    #         with open('F:\Thesis\data\c19_astar_cache\c19_astar_cache103.csv', 'a') as f_object:
+    #             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+    #             # Pass the dictionary as an argument to the Writerow()
+    #             dictwriter_object.writerow(align)
+    #             # Close the file object
+    #             f_object.close()
+    # df = pd.read_csv('F:\Thesis\data\c19_astar_cache\c19_astar_cache103.csv')
+    # df.to_csv('F:\Thesis\data\c19_astar_cache\c19_astar_cache103.csv', index=False)
+
+            with open('F:\Thesis\data\c19_astar_pm4py\c19_astar_pm4py.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
@@ -115,14 +156,14 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\c19_astar_cache\c19_astar_cache3.csv', 'a') as f_object:
+            with open('F:\Thesis\data\c19_astar_pm4py\c19_astar_pm4py.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
-    df = pd.read_csv('F:\Thesis\data\c19_astar_cache\c19_astar_cache3.csv')
-    df.to_csv('F:\Thesis\data\c19_astar_cache\c19_astar_cache3.csv', index=False)
+    df = pd.read_csv('F:\Thesis\data\c19_astar_pm4py\c19_astar_pm4py.csv')
+    df.to_csv('F:\Thesis\data\c19_astar_pm4py\c19_astar_pm4py.csv', index=False)
 
 
 if __name__ == "__main__":

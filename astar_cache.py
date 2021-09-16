@@ -1,5 +1,7 @@
 import heapq
 import sys
+import time
+import timeit
 from enum import Enum
 import re
 import numpy as np
@@ -182,44 +184,52 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, tr
                 trace_sync[i] = t_index[t]
     init_dict = {}
     dict_g = {initial_marking: 0}
-    return search(sync_prod, initial_marking, final_marking, cost_function, skip, split_lst, incidence_matrix,
+    start_time = timeit.default_timer()
+    time_h = 0
+    res = search(sync_prod, initial_marking, final_marking, cost_function, skip, split_lst, incidence_matrix,
                   init_dict,
-                  restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log, dict_g)
+                  restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log, dict_g, time_h)
+    res['time_sum'] = timeit.default_timer() - start_time
+    res['time_diff'] = res['time_sum'] - res['time_h']
+    return res
 
 
 def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
-           restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log, dict_g,
+           restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log, dict_g, time_h,
            closed=set(),
            check_set=[],
            use_init=False):
     ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
     visited_temp = 0
-    cost_vec = [x * 1.0 for x in cost_vec]
     t_index = incidence_matrix.transitions
     p_index = incidence_matrix.places
 
     if use_init:
         h, x, trustable = init_dict['h'], init_dict['x'], True
     else:
+        start_time = timeit.default_timer()
         h, x = compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
+        time_h += timeit.default_timer() - start_time
     open_set = []
     order = 0
     ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], order)
     open_set.append(ini_state)
-
     if len(check_set) > 0:
         # use flag to check whether state can be trusted
         flag = True
         for state in check_set:
             new_state = get_state(state, ini_state.x, cost_vec, h)
-            if new_state.trust:
+            a, b = get_max_events(new_state)
+            if new_state.trust and a >= max(split_lst):
+                # print("the check work")
                 flag = False
             open_set.append(new_state)
-        # if flag:
-        #     print("the check does not work", len(split_lst)-1, "\n")
-        #     closed = set()
-        #     dict_g = {ini: 0}
-        #     open_set = [ini_state]
+        if flag:
+            # print("the check does not work", len(split_lst)-1, "\n")
+            closed = set()
+            dict_g = {ini: 0}
+            open_set = [ini_state]
+
     heapq.heapify(open_set)
     max_events = -1
     init_dict = {}
@@ -230,8 +240,8 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
         curr = heapq.heappop(open_set)
         # final marking reached
         if curr.m == fin:
-            print(len(split_lst), "find path", visited_temp, curr.pre_trans_lst)
-            return reconstruct_alignment(curr, visited, queued, traversed, lp_solved, restart, len(trace_log))
+            # print(len(split_lst)-1, "find path", visited_temp, curr.pre_trans_lst)
+            return reconstruct_alignment(curr, visited, queued, traversed, lp_solved, restart, len(trace_log), time_h)
 
         # heuristic of m is not exact
         if not curr.trust:
@@ -240,40 +250,38 @@ def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix,
             if max_events not in split_lst:
                 # Add s to the maximum events explained to K
                 if max_events < max(split_lst):
+                    print("\n不可以")
                     open_set = []
                     closed = set()
                     dict_g = {ini: 0}
                 split_lst.append(max_events)
+                start_time = timeit.default_timer()
                 h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix.a_matrix,
                                                         incidence_matrix.b_matrix, split_lst, t_index, p_index,
                                                         trace_sync, trace_log)
+                time_h += timeit.default_timer() - start_time
                 lp_solved += 1
                 init_dict['x'] = x
                 init_dict['h'] = h
                 restart += 1
                 heapq.heappush(open_set, curr)
-                print("round ", len(split_lst)-1, split_lst, "\nopen set num:", len(open_set))
-                # for i in open_set:
-                #     print(i.m, i.trust)
-                print("closed set:", len(closed))
-                # for i in closed:
-                #     print(i)
-                print("dict_g:", len(dict_g))
-                # for i in dict_g:
-                #     print(i)
-                # print("\n")
+                # print("round ", len(split_lst)-1, split_lst, "\nopen set num:", len(open_set))
+                # print("closed set:", len(closed))
+                # print("dict_g:", len(dict_g))
                 return search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
                               restart, block_restart, visited, queued, traversed, lp_solved, trace_sync,
-                              trace_log, dict_g,
-                              check_set=open_set, closed=closed, use_init=True)
+                              trace_log, dict_g, time_h,
+                              check_set=open_set, closed=set(), use_init=True)
 
             # compute the true heuristic
+            start_time = timeit.default_timer()
             h, x = compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
                                            fin_vec,
                                            incidence_matrix.a_matrix,
                                            cost_vec)
+            time_h += timeit.default_timer() - start_time
             lp_solved += 1
-            print("计算了一次")
+            # print("计算了一次")
             if h > curr.h:
                 tp = SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True, curr.pre_trans_lst, curr.order)
                 heapq.heappush(open_set, tp)
@@ -417,7 +425,7 @@ def get_pre_trans(marking, lst):
     return get_pre_trans(marking.p, lst)
 
 
-def reconstruct_alignment(state, visited, queued, traversed, lp_solved, restart, trace_length, ret_tuple_as_trans_desc=False):
+def reconstruct_alignment(state, visited, queued, traversed, lp_solved, restart, trace_length, time_h, ret_tuple_as_trans_desc=False):
     alignment = list()
     if state.p is not None and state.t is not None:
         parent = state.p
@@ -438,7 +446,8 @@ def reconstruct_alignment(state, visited, queued, traversed, lp_solved, restart,
             'traversed_arcs': traversed,
             'lp_solved': lp_solved,
             'restart': restart,
-            'trace_length': trace_length
+            'trace_length': trace_length,
+            "time_h": time_h
             }
 
 
@@ -459,11 +468,11 @@ def trust_solution(x):
 
 def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
     ini_vec = incidence_matrix.encode_marking(ini)
-    fini_vec = incidence_matrix.encode_marking(fin)
+    fin_vec = incidence_matrix.encode_marking(fin)
     cost_vec = [0] * len(cost_function)
     for t in cost_function.keys():
         cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
-    return ini_vec, fini_vec, cost_vec
+    return np.array(ini_vec), np.array(fin_vec), np.array(cost_vec)
 
 
 class IncidenceMatrix(object):
@@ -494,8 +503,6 @@ class IncidenceMatrix(object):
         p_index, t_index = {}, {}
         places = sorted([x for x in net.places], key=lambda x: (str(x.name), id(x)))
         transitions = sorted([x for x in net.transitions], key=lambda x: (str(x.name), id(x)))
-        rule_l = {}
-        rule_r = {}
 
         for p in places:
             p_index[p] = len(p_index)
@@ -510,19 +517,16 @@ class IncidenceMatrix(object):
         for i in range(len(t_index_sort)):
             new_t_index[t_index_sort[i][0]] = i
 
-        a_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
-        b_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
+        a_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
+        b_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
+
         count = 0
         for p in net.places:
-            rule_l[count] = set()
-            rule_r[count] = set()
             for a in p.in_arcs:
                 a_matrix[new_p_index[p]][new_t_index[a.source]] += 1
-                rule_l[count].add(a.source.label)
             for a in p.out_arcs:
                 a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
                 b_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
-                rule_r[count].add(a.target.label)
         return a_matrix, b_matrix, new_p_index, new_t_index
     a_matrix = property(__get_a_matrix)
     b_matrix = property(__get_b_matrix)

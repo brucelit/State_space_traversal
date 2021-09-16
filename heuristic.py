@@ -1,4 +1,5 @@
 import time
+import timeit
 
 import pulp
 import numpy as np
@@ -7,135 +8,89 @@ import gurobipy as gp
 from gurobipy import GRB
 
 
-def compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix,
+def compute_ini_heuristic(ini_vec, fin_vec, cost, incidence_matrix,
                           consumption_matrix, split_lst, t_index, p_index,
                           trace_lst_log, trace_lst_sync, set_model_move=set()):
     k = len(split_lst) - 1
-
-    # split_dict = dict(sorted(split_dict.items(), key=lambda item: item[1]))
     split_lst = sorted(split_lst[1:])
     split_lst.append(len(trace_lst_log))
     place_num = len(p_index)
     trans_num = len(t_index)
+    marking_diff = fin_vec - ini_vec
 
     # define problem
-    prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
+    m = gp.Model("matrix")
+    m.Params.LogToConsole = 0
 
-    # define x_i from x_0 to x_k, with k+1 x_i
-    var_x = np.array([[pulp.LpVariable(f'x{i}_{j}', lowBound=0, upBound=255, cat=pulp.LpInteger)
-                       for j in range(trans_num)] for i in range(k + 1)])
+    # Create a 2-D array of integer variables, 0 to k+1
+    x = m.addMVar((k + 1, trans_num), vtype=GRB.INTEGER, lb=0)
+    y = m.addMVar((k + 1, trans_num), vtype=GRB.INTEGER, lb=0)
 
-    # define y_i from 0 to k
-    var_y = np.array([[pulp.LpVariable(f'y{i}_{j}', lowBound=0, upBound=1, cat=pulp.LpInteger)
-                       for j in range(trans_num)] for i in range(k + 1)])
+    # Set objective
+    m.setObjective(sum(cost @ x[i, :] + cost @ y[i, :] for i in range(k + 1)), GRB.MINIMIZE)
 
-    # constraint 1
-    marking_diff = np.array(fin_vec) - np.array(ini_vec)
-    ct1 = np.dot(incidence_matrix, var_x.sum(axis=0)) + np.dot(incidence_matrix, var_y.sum(axis=0))
-    for j in range(place_num):
-        # prob += ct1[i] == marking_diff[i]
-        prob.addConstraint(
-            pulp.LpConstraint(
-                e=ct1[j],
-                sense=pulp.LpConstraintEQ,
-                rhs=marking_diff[j]))
+    # add constraint 1
+    z = np.array([0 for i in range(place_num)])
+    for i in range(k + 1):
+        sum_x = incidence_matrix @ x[i, :]
+        sum_y = incidence_matrix @ y[i, :]
+        z += sum_x + sum_y
+    m.addConstr(z == marking_diff, "cs1")
 
-    # constraint 2
+    # add constraint 2
     a = 1
-    ct2_1 = np.dot(incidence_matrix, var_x[0])
-    cons_two = np.array(ini_vec)
-    # start_time1 = time.time()
+    ct2_1 = incidence_matrix @ x[0, :]
+    cons_two = ini_vec
     while a < k + 1:
         for b in range(1, a):
-            if b == a-1:
-                var2 = var_x[b] + var_y[b]
-                ct2_1 += np.dot(incidence_matrix, var2)
-        ct2 = ct2_1 + np.dot(consumption_matrix, var_y[a])
-        for j in range(place_num):
-            prob.addConstraint(
-                pulp.LpConstraint(
-                    e=ct2[j],
-                    sense=pulp.LpConstraintGE,
-                    rhs=-1 * cons_two[j]))
+            if b == a - 1:
+                ct2_1 += incidence_matrix @ x[b, :] + incidence_matrix @ y[b, :]
+        ct2 = ct2_1 + consumption_matrix @ y[a, :]
+        m.addConstr(ct2 >= -1 * cons_two)
         a += 1
 
-    # constraint 5,6
+    # add constraint 5 and 6:
     y_col = 1
-    prob += np.sum(var_y[0]) == 0
+    a = y[0, :].sum()
+    m.addConstr(a == 0)
     for i in split_lst[:-1]:
         if trace_lst_sync[i] is not None and trace_lst_log[i] is not None:
-            prob += pulp.LpAffineExpression([(var_y[y_col][trace_lst_sync[i]], 1),
-                                             (var_y[y_col][trace_lst_log[i]], 1)]) == 1
+            k_1 = trace_lst_sync[i]
+            k_2 = trace_lst_log[i]
+            m.addConstr(y[y_col, k_1] + y[y_col, k_2] == 1)
         elif trace_lst_sync[i] is None and trace_lst_log[i] is not None:
-            prob += pulp.LpAffineExpression([(var_y[y_col][trace_lst_log[i]], 1)]) == 1
-        prob += pulp.lpSum(var_y[y_col]) == 1
+            k_1 = trace_lst_log[i]
+            m.addConstr(y[y_col, k_1] == 1)
+        a = y[y_col, :].sum()
+        m.addConstr(a == 1)
         y_col += 1
+    # Optimize model
+    m.optimize()
 
-    # additional constraints
-    # set1 = set()
-    # for i in range(split_lst[k-1]+1, split_lst[k]):
-    #     if trace_lst_sync[i] is not None:
-    #         set1.add(trace_lst_sync[i])
-    #     if trace_lst_log[i] is not None:
-    #         set1.add(trace_lst_log[i])
-    #
-    # set1.add(trace_lst_sync[-1])
-    # set1.add(trace_lst_log[-1])
-    # set2 = set1.union(set_model_move)
-    # set3 = set([i for i in range(trans_num)])
-    # set4 = set3.difference(set2)
-    # for j in range(trans_num):
-    #     if j in set4:
-    #         prob += pulp.LpAffineExpression([(var_x[k][j], 1)]) == 0
-
-    # add objective
-    costs = np.array([cost_vec for i in range(2 * k + 2)])
-    x = np.concatenate((var_x, var_y), axis=0)
-    objective = pulp.lpSum(x[i, j] * costs[i, j]
-                           for j in range(trans_num)
-                           for i in range(2 * k + 2))
-    prob.setObjective(objective)
-    prob.solve()
-    if pulp.LpStatus[prob.status] == "Optimal":
-        dict1 = {'heuristic': int(pulp.value(prob.objective)),
-                 'var_x': [[int(pulp.value(var_x[i][j])) for j in range(trans_num)] for i in range(k + 1)],
-                 'var_y': [[int(pulp.value(var_y[i][j])) for j in range(trans_num)] for i in range(k + 1)]}
-        return dict1['heuristic'], np.array(dict1['var_x']).sum(axis=0) + np.array(dict1['var_y']).sum(axis=0), \
-               pulp.LpStatus[prob.status]
+    if m.status == 2:
+        dict1 = {'heuristic': m.objVal,
+                 'var_x': x.X,
+                 'var_y': y.X}
+        return dict1['heuristic'], \
+               np.array(dict1['var_x']).sum(axis=0) + np.array(dict1['var_y']).sum(axis=0), \
+               "Optimal"
     else:
-        print(prob.status)
         return 0, 0, "Infeasible"
 
 
 # compute heuristic of marking m' from marking m
 def compute_exact_heuristic(ini_vec, fin_vec, inc_matrix, cost_vec):
-    # marking_diff = np.asarray(fin_vec) - np.asarray(ini_vec)
-    # prob = pulp.LpProblem('Heuristic', sense=pulp.LpMinimize)
-    # var = [pulp.LpVariable(f'x{i}', lowBound=0, cat=pulp.LpInteger)
-    #        for i in range(len(cost_vec))]
-    # prob += pulp.lpDot(cost_vec, var)
-    # var1 = np.dot(inc_matrix, np.array(var))
-    # for j in range(len(ini_vec)):
-    #     prob.addConstraint(
-    #         pulp.LpConstraint(
-    #             e=var1[j],
-    #             sense=pulp.LpConstraintEQ,
-    #             rhs=marking_diff[j]))
-    # prob.solve()
-    # dict1 = {'heuristic': int(pulp.value(prob.objective)),
-    #          'var': [int(pulp.value(var[i])) for i in range(len(cost_vec))]}
-    # return dict1['heuristic'], dict1['var']
-    marking_diff = np.asarray(fin_vec) - np.asarray(ini_vec)
-    ineq = np.zeros(len(inc_matrix))
-    # ineq2 = [i for i in range(1, len(ini_vec)+1)]
-    lp = lp_maker(cost_vec, inc_matrix, marking_diff, ineq, setminim=1)
-    o1 = np.ones(len(cost_vec))
-    lpsolve('set_int', lp, o1)
-    lpsolve("solve", lp)
-    obj = lpsolve('get_objective', lp)
-    var = lpsolve('get_variables', lp)[0]
-    lpsolve('delete_lp',lp)
-    return obj, var
+    marking_diff = fin_vec - ini_vec
+    m = gp.Model("matrix")
+    m.Params.LogToConsole = 0
+    x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
+    z = np.array(inc_matrix) @ x[0, :]
+    m.addConstr(z == marking_diff)
+    m.setObjective(sum(cost_vec @ x[i, :] for i in range(1)), GRB.MINIMIZE)
+    m.optimize()
+    dict1 = {'heuristic': m.objVal,
+             'var': np.array(x.X.sum(axis=0))}
+    return dict1['heuristic'], dict1['var']
 
 
 # computer estimated heuristic from heuristics of previous marking

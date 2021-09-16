@@ -12,7 +12,9 @@ References
       ATAED@Petri Nets/ACSD 2017: 6-20. `http://ceur-ws.org/Vol-1847/paper01.pdf`_.
 
 """
-import heuristic_past
+import timeit
+
+import heuristic
 import heapq
 import sys
 import time
@@ -394,13 +396,17 @@ def apply_sync_prod(sync_prod,
     dictionary : :class:`dict` with keys **alignment**, **cost**, **visited_states**, **queued_states**
     and **traversed_arcs**
     """
-    return __search(sync_prod,
+    start_time = timeit.default_timer()
+    res = __search(sync_prod,
                     initial_marking,
                     final_marking,
                     cost_function,
                     skip,
                     ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                     max_align_time_trace=max_align_time_trace)
+    res['time_sum'] = timeit.default_timer() - start_time
+    res['time_diff'] = res['time_sum'] - res['time_h']
+    return res
 
 
 def __search(sync_net,
@@ -410,21 +416,14 @@ def __search(sync_net,
              skip,
              ret_tuple_as_trans_desc=False,
              max_align_time_trace=sys.maxsize):
-    start_time = time.time()
-
+    time_h = 0
     decorate_transitions_prepostset(sync_net)
     decorate_places_preset_trans(sync_net)
 
     incidence_matrix = inc_mat_construct(sync_net)
     ini_vec, fin_vec, cost_vec = utils.__vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
     closed = set()
-    cost_vec = [x * 1.0 for x in cost_vec]
-
-    # h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
-    #     #                                                    ini,
-    #     #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
-    #     #                                                    use_cvxopt=use_cvxopt)
-    h, x = heuristic_past.compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
+    h, x = heuristic.compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
     open_set = [ini_state]
     heapq.heapify(open_set)
@@ -436,32 +435,19 @@ def __search(sync_net,
     trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
 
     while not len(open_set) == 0:
-        if (time.time() - start_time) > max_align_time_trace:
-            return None
-
         curr = heapq.heappop(open_set)
 
         current_marking = curr.m
 
         while not curr.trust:
-            if (time.time() - start_time) > max_align_time_trace:
-                return None
-
             already_closed = current_marking in closed
             if already_closed:
                 curr = heapq.heappop(open_set)
                 current_marking = curr.m
                 continue
-
-            # h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
-            #                                                    incidence_matrix, curr.m,
-            #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
-            #                                                    use_cvxopt=use_cvxopt)
-
-            h, x = heuristic_past.compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
-                                                          fin_vec,
-                                                          incidence_matrix.a_matrix,
-                                                          cost_vec)
+            start_time = timeit.default_timer()
+            h, x = heuristic.compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
+            time_h += timeit.default_timer() - start_time
             lp_solved += 1
             tp = utils.SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True)
             curr = heapq.heappushpop(open_set, tp)
@@ -484,6 +470,8 @@ def __search(sync_net,
                                                      visited,
                                                      queued,
                                                      traversed,
+                                                     lp_solved,
+                                                     time_h,
                                                      ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
                                                      lp_solved=lp_solved)
 
