@@ -1,5 +1,6 @@
 import heapq
 import sys
+import timeit
 from enum import Enum
 import re
 import numpy as np
@@ -14,7 +15,7 @@ from pm4py.util.xes_constants import DEFAULT_NAME_KEY
 from pm4py.util import variants_util
 
 from construction import construct_cost_aware_backward, construct_cost_aware_forward
-from heuristic import compute_ini_heuristic, compute_exact_heuristic
+from heuristic import get_ini_heuristic, get_exact_heuristic
 
 
 class Parameters(Enum):
@@ -191,8 +192,7 @@ def apply_sync_prod(forward_sync_net,
                     backward_sync_net,
                     backward_initial_marking,
                     backward_final_marking,
-                    backward_cost_function, trace_lst, skip,
-                    max_align_time_trace=sys.maxsize):
+                    backward_cost_function, trace_lst, skip):
     decorate_transitions_prepostset(forward_sync_net)
     decorate_places_preset_trans(forward_sync_net)
     forward_incidence_matrix = construct(forward_sync_net)
@@ -210,10 +210,6 @@ def apply_sync_prod(forward_sync_net,
                 forward_trace_log[i] = t_index[t]
             if trace_lst[i].name == t.name[0] and t.label[1] != ">>":
                 forward_trace_sync[i] = t_index[t]
-    # violate = list(violate_lst.values())
-    # for t in sync_net.transitions:
-    #     if t.label[0] == t.label[1] and int(re.search("(\d+)(?!.*\d)", t.name[0]).group()) + 1 in violate:
-    #         split_dict[t] = int(re.search("(\d+)(?!.*\d)", t.name[0]).group()) + 1
     decorate_transitions_prepostset(backward_sync_net)
     decorate_places_preset_trans(backward_sync_net)
     backward_incidence_matrix = construct(backward_sync_net)
@@ -228,17 +224,18 @@ def apply_sync_prod(forward_sync_net,
                 backward_trace_log[i] = t_index[t]
             if trace_lst[i].name == t.name[0] and t.label[1] != ">>":
                 backward_trace_sync[i] = t_index[t]
-    return search(forward_sync_net, forward_initial_marking, forward_final_marking,
+    start_time = timeit.default_timer()
+    time_h = 0
+    res = search(forward_sync_net, forward_initial_marking, forward_final_marking,
                   forward_cost_function, forward_trace_sync, forward_trace_log,
                   {}, forward_incidence_matrix, forward_split_dict,
                   backward_sync_net, backward_initial_marking, backward_final_marking,
                   backward_cost_function, backward_trace_sync, backward_trace_log,
                   {}, backward_incidence_matrix, backward_split_dict,
-                  skip, 0, 0, visited, queued, traversed, lp_solved,
-                  0,
-                  forward_use_init=False,
-                  backward_use_init=False,
-                  )
+                  skip, 0, 0, visited, queued, traversed, lp_solved, time_h)
+    res['time_sum'] = timeit.default_timer() - start_time
+    res['time_diff'] = res['time_sum'] - res['time_h']
+    return res
 
 
 def search(forward_sync_net, forward_ini, forward_fin,
@@ -247,8 +244,9 @@ def search(forward_sync_net, forward_ini, forward_fin,
            backward_sync_net, backward_ini, backward_fin,
            backward_cost_function, backward_trace_sync, backward_trace_log,
            backward_init_dict, backward_incidence_matrix, backward_split_lst,
-           skip, restart, visited, queued, traversed, lp_solved,
-           forward_closed={}, backward_closed={},
+           skip, restart, visited, queued, traversed, lp_solved, time_h,
+           forward_closed={},
+           backward_closed={},
            forward_use_init=False,
            backward_use_init=False,
            search_forward=True):
@@ -259,14 +257,14 @@ def search(forward_sync_net, forward_ini, forward_fin,
             backward_incidence_matrix, backward_ini, backward_fin,
             backward_cost_function)
         backward_closed = {}
-        cost_vec = [x * 1.0 for x in cost_vec]
-        cost_vec2 = [x * 1.0 for x in cost_vec]
         t_index = backward_incidence_matrix.transitions
         p_index = backward_incidence_matrix.places
         if backward_use_init:
             h, x, trustable = backward_init_dict['h'], backward_init_dict['x'], True
         else:
-            h, x = compute_exact_heuristic(ini_vec, fin_vec, backward_incidence_matrix.a_matrix, cost_vec2)
+            start_time = timeit.default_timer()
+            h, x = get_exact_heuristic(ini_vec, fin_vec, backward_incidence_matrix.a_matrix, cost_vec)
+            time_h += timeit.default_timer() - start_time
         open_set = []
         order = 0
         ini_state = SearchTuple(0 + h, 0, h, backward_ini, None, None, x, True, [], order)
@@ -283,20 +281,22 @@ def search(forward_sync_net, forward_ini, forward_fin,
             curr = heapq.heappop(open_set)
             # final marking reached
             if curr.m == backward_fin:
-                print("max", max(forward_split_lst.values()), max(backward_split_lst.values()), len(backward_trace_log))
+                # print("max", max(forward_split_lst.values()), max(backward_split_lst.values()), len(backward_trace_log))
                 return reconstruct_alignment(curr, visited, queued, traversed, restart,
                                              len(backward_trace_log), forward_split_lst, backward_split_lst,
-                                             lp_solved)
+                                             lp_solved, time_h)
 
             if not curr.trust:
                 # check if s is not already a split point in K
                 if max_events not in forward_split_lst.values():
                     backward_split_lst.update({split_point: max_events})
-                    h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec2,
+                    start_time = timeit.default_timer()
+                    h, x, trustable = get_ini_heuristic(ini_vec, fin_vec, cost_vec,
                                                             backward_incidence_matrix.a_matrix,
-                                                            backward_incidence_matrix.b_matrix, backward_split_lst,
+                                                            backward_incidence_matrix.b_matrix, list(backward_split_lst.values()),
                                                             t_index, p_index,
                                                             backward_trace_sync, backward_trace_log)
+                    time_h += timeit.default_timer() - start_time
                     lp_solved += 1
                     backward_init_dict['x'] = x
                     backward_init_dict['h'] = h
@@ -313,7 +313,7 @@ def search(forward_sync_net, forward_ini, forward_fin,
                                   backward_sync_net, backward_ini, backward_fin,
                                   backward_cost_function, backward_trace_sync, backward_trace_log,
                                   backward_init_dict, backward_incidence_matrix, backward_split_lst,
-                                  skip, restart, visited, queued, traversed, lp_solved,
+                                  skip, restart, visited, queued, traversed, lp_solved, time_h,
                                   forward_closed,
                                   backward_closed,
                                   backward_use_init,
@@ -321,10 +321,12 @@ def search(forward_sync_net, forward_ini, forward_fin,
                                   search_forward)
 
                 # compute the true heuristic
-                h, x = compute_exact_heuristic(backward_incidence_matrix.encode_marking(curr.m),
+                start_time = timeit.default_timer()
+                h, x = get_exact_heuristic(backward_incidence_matrix.encode_marking(curr.m),
                                                fin_vec,
                                                backward_incidence_matrix.a_matrix,
                                                cost_vec)
+                time_h += timeit.default_timer() - start_time
                 lp_solved += 1
                 if h > curr.h:
                     tp = SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True, curr.pre_trans_lst,
@@ -340,21 +342,16 @@ def search(forward_sync_net, forward_ini, forward_fin,
                 max_events = len(backward_trace_log) - new_max_events + 1
                 split_point = last_sync
                 if max_events > len(backward_trace_log) - max(forward_split_lst.values()):
-                    print("检查", backward_split_lst, forward_split_lst)
                     intersect = backward_closed.keys() & forward_closed.keys()
                     if len(intersect) > 0:
                         for curr in intersect:
                             align1 = reconstruct_alignment(backward_closed[curr], visited, queued, traversed, restart,
                                                            len(forward_trace_log),
-                                                           forward_split_lst,
-                                                           backward_split_lst,
-                                                           lp_solved)
+                                                           lp_solved, time_h)
                             align2 = reconstruct_alignment(forward_closed[curr], visited, queued, traversed, restart,
                                                            len(backward_trace_log),
-                                                           forward_split_lst,
-                                                           backward_split_lst,
-                                                           lp_solved)
-                            return reconstruct_alignment2(align2, align1)
+                                                           lp_solved, time_h)
+                            return reconstruct_alignment2(align2, align1, time_h)
 
 
             visited += 1
@@ -408,21 +405,20 @@ def search(forward_sync_net, forward_ini, forward_fin,
                                                                   forward_fin,
                                                                   forward_cost_function)
         forward_closed = {}
-        cost_vec = [x * 1.0 for x in cost_vec]
-        cost_vec2 = [x * 1.0 for x in cost_vec]
         t_index = forward_incidence_matrix.transitions
         p_index = forward_incidence_matrix.places
         if forward_use_init:
             h, x, trustable = forward_init_dict['h'], forward_init_dict['x'], True
         else:
-            h, x = compute_exact_heuristic(ini_vec, fin_vec, forward_incidence_matrix.a_matrix, cost_vec2)
+            start_time = timeit.default_timer()
+            h, x = get_exact_heuristic(ini_vec, fin_vec, forward_incidence_matrix.a_matrix, cost_vec)
+            time_h += timeit.default_timer() - start_time
         open_set = []
         order = 0
         ini_state = SearchTuple(0 + h, 0, h, forward_ini, None, None, x, True, [], order)
         open_set.append(ini_state)
         heapq.heapify(open_set)
         max_events = 0
-        # trans_empty_preset = set(t for t in sync_net.transitions if len(t.in_arcs) == 0)
         split_point = None
         dict_g = {forward_ini: 0}
         forward_init_dict = {}
@@ -433,11 +429,10 @@ def search(forward_sync_net, forward_ini, forward_fin,
             curr = heapq.heappop(open_set)
             # final marking reached
             if curr.m == forward_fin:
-                print("max", max(forward_split_lst.values()), max(backward_split_lst.values()), len(forward_trace_log))
+                # print("max", max(forward_split_lst.values()), max(backward_split_lst.values()), len(forward_trace_log))
                 return reconstruct_alignment(curr, visited, queued, traversed, restart,
-                                             len(forward_trace_log), forward_split_lst,
-                                             backward_split_lst,
-                                             lp_solved=lp_solved)
+                                             len(forward_trace_log),
+                                             lp_solved, time_h)
 
             # heuristic of m is not exact
             if not curr.trust:
@@ -445,11 +440,13 @@ def search(forward_sync_net, forward_ini, forward_fin,
                 # check if s is not already a splitpoint in K
                 if max_events not in forward_split_lst.values():
                     forward_split_lst.update({split_point: max_events})
-                    h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec2,
+                    start_time = timeit.default_timer()
+                    h, x, trustable = get_ini_heuristic(ini_vec, fin_vec, cost_vec,
                                                             forward_incidence_matrix.a_matrix,
-                                                            forward_incidence_matrix.b_matrix, forward_split_lst,
+                                                            forward_incidence_matrix.b_matrix, list(forward_split_lst.values()),
                                                             t_index, p_index,
                                                             forward_trace_sync, forward_trace_log)
+                    time_h += timeit.default_timer() - start_time
                     lp_solved += 1
                     forward_init_dict['x'] = x
                     forward_init_dict['h'] = h
@@ -475,7 +472,7 @@ def search(forward_sync_net, forward_ini, forward_fin,
                                   backward_sync_net, backward_ini, backward_fin,
                                   backward_cost_function, backward_trace_sync, backward_trace_log,
                                   backward_init_dict, backward_incidence_matrix, backward_split_lst,
-                                  skip, restart, visited, queued, traversed, lp_solved,
+                                  skip, restart, visited, queued, traversed, lp_solved, time_h,
                                   forward_closed,
                                   backward_closed,
                                   forward_use_init,
@@ -483,10 +480,13 @@ def search(forward_sync_net, forward_ini, forward_fin,
                                   search_forward)
 
                 # compute the true heuristic
-                h, x = compute_exact_heuristic(forward_incidence_matrix.encode_marking(curr.m),
+                start_time = timeit.default_timer()
+                h, x = get_exact_heuristic(forward_incidence_matrix.encode_marking(curr.m),
                                                fin_vec,
                                                forward_incidence_matrix.a_matrix,
                                                cost_vec)
+                time_h += timeit.default_timer() - start_time
+
                 lp_solved += 1
                 if h > curr.h:
                     tp = SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True, curr.pre_trans_lst,
@@ -502,21 +502,16 @@ def search(forward_sync_net, forward_ini, forward_fin,
                 max_events = new_max_events
                 split_point = last_sync
                 if max_events > len(backward_trace_log) - max(backward_split_lst.values()):
-                    print("检查2", backward_split_lst, forward_split_lst)
                     intersect = backward_closed.keys() & forward_closed.keys()
                     if len(intersect) > 0:
                         for curr in intersect:
                             align1 = reconstruct_alignment(backward_closed[curr], visited, queued, traversed, restart,
                                                            len(forward_trace_log),
-                                                           forward_split_lst,
-                                                           backward_split_lst,
-                                                           lp_solved)
+                                                           lp_solved, time_h)
                             align2 = reconstruct_alignment(forward_closed[curr], visited, queued, traversed, restart,
                                                            len(backward_trace_log),
-                                                           forward_split_lst,
-                                                           backward_split_lst,
-                                                           lp_solved)
-                            return reconstruct_alignment2(align2, align1)
+                                                           lp_solved, time_h)
+                            return reconstruct_alignment2(align2, align1, time_h)
 
             visited += 1
             enabled_trans = set()
@@ -660,15 +655,12 @@ def check_heuristic(state, ini_vec):
 
 def reconstruct_alignment(state, visited, queued, traversed, restart,
                           trace_length,
-                          forward_split_lst,
-                          backward_split_lst,
-                          lp_solved):
+                          lp_solved, time_h):
     alignment = list()
     if state.p is not None and state.t is not None:
         parent = state.p
         alignment = [state.t.label]
         while parent.p is not None:
-            # print("state", parent.p.m)
             alignment = [parent.t.label] + alignment
             parent = parent.p
     return {'alignment': alignment,
@@ -679,12 +671,11 @@ def reconstruct_alignment(state, visited, queued, traversed, restart,
             'lp_solved': lp_solved,
             'restart': restart,
             'trace_length': trace_length,
-            "forward_split_lst": list(forward_split_lst.values()),
-            "backward_split_lst": list(backward_split_lst.values())
+            'time_h': time_h
             }
 
 
-def reconstruct_alignment2(rec1, rec2):
+def reconstruct_alignment2(rec1, rec2, time_h):
     return {'alignment': rec1['alignment'] + rec2['alignment'],
             'cost': rec1['cost'] + rec2['cost'],
             'visited_states': rec1['visited_states'],
@@ -693,8 +684,7 @@ def reconstruct_alignment2(rec1, rec2):
             'lp_solved': rec1['lp_solved'],
             'restart': rec1['restart'],
             'trace_length': rec1['trace_length'],
-            'forward_split_lst': rec1['forward_split_lst'],
-            'backward_split_lst': rec2['backward_split_lst']
+            'time_h': time_h
             }
 
 
@@ -713,11 +703,11 @@ def trust_solution(x):
 
 def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
     ini_vec = incidence_matrix.encode_marking(ini)
-    fini_vec = incidence_matrix.encode_marking(fin)
+    fin_vec = incidence_matrix.encode_marking(fin)
     cost_vec = [0] * len(cost_function)
     for t in cost_function.keys():
         cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
-    return ini_vec, fini_vec, cost_vec
+    return np.array(ini_vec), np.array(fin_vec), np.array(cost_vec)
 
 
 class IncidenceMatrix(object):
@@ -737,12 +727,6 @@ class IncidenceMatrix(object):
     def __get_b_matrix(self):
         return self.__B
 
-    # def __get_rule_l(self):
-    #     return self.__rule_l
-    #
-    # def __get_rule_r(self):
-    #     return self.__rule_r
-
     def __get_transition_indices(self):
         return self.__transition_indices
 
@@ -754,8 +738,6 @@ class IncidenceMatrix(object):
         p_index, t_index = {}, {}
         places = sorted([x for x in net.places], key=lambda x: (str(x.name), id(x)))
         transitions = sorted([x for x in net.transitions], key=lambda x: (str(x.name), id(x)))
-        rule_l = {}
-        rule_r = {}
 
         for p in places:
             p_index[p] = len(p_index)
@@ -770,30 +752,20 @@ class IncidenceMatrix(object):
         for i in range(len(t_index_sort)):
             new_t_index[t_index_sort[i][0]] = i
 
-        a_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
-        b_matrix = [[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))]
-        count = 0
+        a_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
+        b_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
         for p in net.places:
-            rule_l[count] = set()
-            rule_r[count] = set()
             for a in p.in_arcs:
                 a_matrix[new_p_index[p]][new_t_index[a.source]] += 1
-                rule_l[count].add(a.source.label)
             for a in p.out_arcs:
                 a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
                 b_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
-                rule_r[count].add(a.target.label)
-            # if len(rule_l[count]) == 0 or len(rule_r[count]) == 0:
-            #     continue
-            # count += 1
         return a_matrix, b_matrix, new_p_index, new_t_index
 
     a_matrix = property(__get_a_matrix)
     b_matrix = property(__get_b_matrix)
     places = property(__get_place_indices)
     transitions = property(__get_transition_indices)
-    # rule_l = property(__get_rule_l)
-    # rule_r = property(__get_rule_r)
 
 
 def construct(net):

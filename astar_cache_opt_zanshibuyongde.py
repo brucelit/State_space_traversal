@@ -13,7 +13,7 @@ from pm4py.util import exec_utils
 from pm4py.util.constants import PARAMETER_CONSTANT_ACTIVITY_KEY
 from pm4py.util.xes_constants import DEFAULT_NAME_KEY
 from pm4py.util import variants_util
-from heuristic import compute_ini_heuristic, compute_exact_heuristic
+from heuristic import get_ini_heuristic, get_exact_heuristic
 
 
 class Parameters(Enum):
@@ -143,8 +143,6 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
     sync_prod, sync_initial_marking, sync_final_marking, cost_function = construct_cost_aware(
         trace_net, trace_im, trace_fm, petri_net, initial_marking, final_marking, utils.SKIP,
         trace_net_costs, model_cost_function, revised_sync)
-    max_align_time_trace = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
-                                                      sys.maxsize)
 
     decorate_transitions_prepostset(trace_net)
     decorate_places_preset_trans(trace_net)
@@ -164,172 +162,246 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
             new_marking = utils.add_markings(current_marking, t.add_marking)
         current_marking = new_marking
 
-    return apply_sync_prod(sync_prod, sync_initial_marking, sync_final_marking, cost_function, trace_lst,
-                           utils.SKIP, ret_tuple_as_trans_desc=ret_tuple_as_trans_desc,
-                           max_align_time_trace=max_align_time_trace)
+    return apply_sync_prod(sync_prod, sync_initial_marking, sync_final_marking, cost_function, trace_lst)
 
 
-def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, trace_lst, skip,
-                    ret_tuple_as_trans_desc=False,
-                    max_align_time_trace=sys.maxsize):
+def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, trace_lst):
+    # Get the syncronous product net
     decorate_transitions_prepostset(sync_prod)
     decorate_places_preset_trans(sync_prod)
+    sync_prod_net = construct(sync_prod)
 
-    incidence_matrix = construct(sync_prod)
-    split_lst = []
-    split_lst.append(-1)
-    visited = 0
-    queued = 0
-    traversed = 0
-    lp_solved = 1
-    trace_sync = [None for i in range(0, len(trace_lst))]
-    trace_log = [None for i in range(0, len(trace_lst))]
-    t_index = incidence_matrix.transitions
-    for t in sync_prod.transitions:
+    start_time = timeit.default_timer()
+    res = search(sync_prod_net, initial_marking, final_marking, cost_function, trace_lst)
+
+    # Get the total running time
+    res['time_sum'] = round(timeit.default_timer() - start_time, 6)
+
+    # Get the total search time
+    res['time_diff'] = round(res['time_sum'] - res['time_h'], 6)
+    return res
+
+
+def search(sync_prod_net, ini, fin, cost_function, trace_lst):
+    ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(sync_prod_net, ini, fin, cost_function)
+    order, time_h, queued, visited, traversed, lp_solved, restart = 0, 0, 0, 0, 0, 0, 0
+    max_events = 0
+    split_lst = [0]
+    closed = set()
+    p_index = sync_prod_net.places
+    t_index = sync_prod_net.transitions
+    incidence_matrix = sync_prod_net.a_matrix
+    consumption_matrix = sync_prod_net.b_matrix
+    trace_sync = [None for i in range(len(trace_lst))]
+    trace_log = [None for i in range(len(trace_lst))]
+
+    # Get the list of index for trace move and synchronous move
+    for t in t_index:
         for i in range(len(trace_lst)):
             if trace_lst[i].name == t.name[0] and t.label[1] == ">>":
                 trace_log[i] = t_index[t]
             if trace_lst[i].name == t.name[0] and t.label[1] != ">>":
                 trace_sync[i] = t_index[t]
-    restart = 0
-    block_restart = 0
+
     start_time = timeit.default_timer()
-    time_h = 0
-    res = search(sync_prod, initial_marking, final_marking, cost_function, skip, split_lst, incidence_matrix, {},
-                  restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log, time_h)
-    res['time_sum'] = timeit.default_timer() - start_time
-    res['time_diff'] = res['time_sum'] - res['time_h']
-    return res
+    marking_diff = fin_vec - ini_vec
+    h, x = get_exact_heuristic(marking_diff, incidence_matrix, cost_vec)
+    time_h += timeit.default_timer() - start_time
+    lp_solved += 1
 
-
-def search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
-           restart, block_restart, visited, queued, traversed, lp_solved, trace_sync, trace_log, time_h, use_init=False):
-    ini_vec, fin_vec, cost_vec = vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
-    visited_temp = 0
-    closed = set()
-    t_index = incidence_matrix.transitions
-    p_index = incidence_matrix.places
-    set_model_move = []
-    for t in t_index:
-        if t.label[0] == ">>":
-            set_model_move.append(t_index[t])
-
-    if use_init:
-        h, x, trustable = init_dict['h'], init_dict['x'], True
-    else:
-        start_time = timeit.default_timer()
-        h, x = compute_exact_heuristic(ini_vec, fin_vec, incidence_matrix.a_matrix, cost_vec)
-        time_h += timeit.default_timer() - start_time
-
-    open_set = []
-    order = 0
-    ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], order)
-    open_set.append(ini_state)
+    ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [[]], {}, order)
+    open_set = [ini_state]
     heapq.heapify(open_set)
-    max_events = -1
-    dict_g = {ini: 0}
-    init_dict = {}
+    already_visit = {ini: 0}
 
-    #  While not all states visited
-    while not len(open_set) == 0:
+    # While not all states visited
+    while open_set:
+
         # Get the most promising marking
         curr = heapq.heappop(open_set)
-        # final marking reached
-        if curr.m == fin:
-            # print(len(split_lst), "round:", visited_temp)
-            return reconstruct_alignment(curr, visited, queued, traversed, lp_solved, restart, len(trace_log), time_h)
 
-        # heuristic of m is not exact
+        # Final marking reached
+        if curr.m == fin:
+            return reconstruct_alignment(curr, visited, queued, traversed, lp_solved, restart, time_h)
+
+        # Heuristic of m is not exact
         if not curr.trust:
 
-            # check if s is not already a splitpoint in K
+            # Check if s is not already a split point in K
             if max_events not in split_lst:
-
-                # Add s to the maximum events explained to K
+                last_max = max(split_lst)
                 split_lst.append(max_events)
+                # print("split list:", split_lst, len(open_set), len(closed), curr.m)
+
                 start_time = timeit.default_timer()
-                h, x, trustable = compute_ini_heuristic(ini_vec, fin_vec, cost_vec, incidence_matrix.a_matrix,
-                                                        incidence_matrix.b_matrix, split_lst, t_index, p_index,
-                                                        trace_sync, trace_log)
+                splits = sorted(split_lst[1:])
+
+                h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, splits,
+                                         incidence_matrix, consumption_matrix,
+                                         t_index, p_index,
+                                         trace_sync, trace_log)
                 time_h += timeit.default_timer() - start_time
                 lp_solved += 1
-                init_dict['x'] = x
-                init_dict['h'] = h
                 restart += 1
-                heapq.heappush(open_set, curr)
-                return search(sync_net, ini, fin, cost_function, skip, split_lst, incidence_matrix, init_dict,
-                              restart, block_restart, visited, queued, traversed, lp_solved, trace_sync,
-                              trace_log, time_h, use_init=True)
-
-            # compute the true heuristic
-            start_time = timeit.default_timer()
-            h, x = compute_exact_heuristic(incidence_matrix.encode_marking(curr.m),
-                                           fin_vec,
-                                           incidence_matrix.a_matrix,
-                                           cost_vec)
-            time_h += timeit.default_timer() - start_time
-
-            lp_solved += 1
-            if h > curr.h:
-                tp = SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True, curr.pre_trans_lst, curr.order)
-                heapq.heappush(open_set, tp)
-                heapq.heapify(open_set)
+                if max_events < last_max:
+                    # print("need to restart")
+                    open_set = []
+                    ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [[]], {}, order)
+                    open_set.append(ini_state)
+                    closed = set()
+                    max_events = 0
+                    already_visit = {ini: 0}
+                    heapq.heapify(open_set)
+                else:
+                    cache_set = []
+                    flag = False
+                    for i in open_set:
+                        new_i = get_state(i, x, cost_vec, h)
+                        a, b = get_max_events(new_i)
+                        if a >= max_events and new_i.trust is True:
+                            flag = True
+                            print("find one")
+                        cache_set.append(new_i)
+                    if flag:
+                        new_curr = get_state(curr, x, cost_vec, h)
+                        cache_set.append(new_curr)
+                        open_set = cache_set
+                        heapq.heapify(open_set)
+                        max_events = 0
+                    else:
+                        order = 0
+                        ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [[]], {}, order)
+                        open_set = [ini_state]
+                        heapq.heapify(open_set)
+                        already_visit = {ini: 0}
+                        heapq.heapify(open_set)
+                        closed = set()
+                        max_events = 0
+                        # print("not explained further")
                 continue
 
-        closed.add(curr.m)
-        new_max_events, last_sync = get_max_events(curr)
-        if new_max_events > max_events and last_sync is not None and new_max_events not in split_lst:
-            max_events = new_max_events
+            # Compute the true heuristic for this marking
+            start_time = timeit.default_timer()
+            marking_diff = fin_vec - sync_prod_net.encode_marking(curr.m)
+            h, x = get_exact_heuristic(marking_diff, incidence_matrix, cost_vec)
+            # print("compute heuristic")
+            time_h += timeit.default_timer() - start_time
+            lp_solved += 1
+
+            # Requeue the state if the new estimate is higher than previous estimate
+            if h > curr.h:
+                tp = SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True, curr.pre_trans_lst,
+                                 curr.subsequent, curr.order)
+                heapq.heappush(open_set, tp)
+                continue
+            else:
+                curr.h = h
+                curr.f = curr.g + h
+                curr.x = x
+                curr.trust = True
 
         visited += 1
-        visited_temp += 1
+
+        # Add current marking to closed set
+        closed.add(curr.m)
+
+        # Update max events explained
+        new_max_events, last_sync = get_max_events(curr)
+        if new_max_events > max_events:
+            max_events = new_max_events
+
         enabled_trans = set()
         for p in curr.m:
             for t in p.ass_trans:
                 if t.sub_marking <= curr.m:
                     enabled_trans.add(t)
-
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans]
-        enabled_trans = sorted(sorted(trans_to_visit_with_cost, key=lambda k: k[1]), key=lambda k: k[0].label[0])
-        for t, cost in enabled_trans:
+        for t, cost in trans_to_visit_with_cost:
             traversed += 1
             new_marking = utils.add_markings(curr.m, t.add_marking)
             if new_marking in closed:
                 continue
-            if new_marking not in dict_g:
+
+            # If the marking has not been visited
+            if new_marking not in already_visit:
                 g = curr.g + cost
-                dict_g[new_marking] = g
+                already_visit[new_marking] = g
                 queued += 1
-                h, x = derive_heuristic(incidence_matrix, cost_vec, curr.x, t, curr.h)
+                this_cost = cost_vec[t_index[t]]
+                this_index = t_index[t]
+                h, x = derive_heuristic(curr.x, curr.h, this_index, this_cost)
                 trustable = trust_solution(x)
-                new_f = g + h
+                f = g + h
                 pre_trans = deepcopy(curr.pre_trans_lst)
-                pre_trans.append(t_index[t])
+                for i in pre_trans:
+                    i.append(t_index[t])
                 order += 1
-                tp = SearchTuple(new_f, g, h, new_marking, curr, t, x, trustable, pre_trans, order)
+                tp = SearchTuple(f, g, h, new_marking, curr, t, x, trustable, pre_trans, {}, order)
+                curr.subsequent[new_marking] = t
                 heapq.heappush(open_set, tp)
             else:
-                if curr.g + cost < dict_g[new_marking]:
-                    dict_g[new_marking] = curr.g + cost
+                if curr.g + cost < already_visit[new_marking]:
+                    already_visit[new_marking] = curr.g + cost
                     for i in open_set:
                         if i.m == new_marking:
                             pre_trans = deepcopy(curr.pre_trans_lst)
-                            pre_trans.append(t_index[t])
+                            for j in pre_trans:
+                                j.append(t_index[t])
+                                i.pre_trans_lst.append(j)
                             i.pre_trans_lst = pre_trans
                             i.g = curr.g + cost
                             queued += 1
-                            i.h, i.x = derive_heuristic(incidence_matrix, cost_vec, curr.x, t, curr.h)
+                            i.h, i.x = derive_heuristic(curr.x, curr.h, t_index[t], cost)
                             i.trust = trust_solution(i.x)
                             i.f = i.g + i.h
                             i.t = t
                             i.p = curr
                             i.order = curr.order + 1
+                            heapq.heapify(open_set)
                             break
-        heapq.heapify(open_set)
+
+
+def get_state(state, ini_vec, cost_vec, h):
+    solution_vec = deepcopy(ini_vec)
+    trust = False
+    bool_lst = [1 for i in range(len(state.pre_trans_lst))]
+    count = 0
+    for j in state.pre_trans_lst:
+        for i in range(len(j)):
+            solution_vec[j[i]] -= 1
+            # when the solution vector encounters -1, means no longer trustable
+            if solution_vec[j[i]] < 0:
+                # trust = False
+                bool_lst[count] = 0
+                continue
+        count += 1
+    if 1 in bool_lst:
+        trust = True
+    new_h = get_h(h, cost_vec, state.pre_trans_lst)
+    check_marking = SearchTuple(state.g + new_h, state.g, new_h, state.m, state.p, state.t,
+                                solution_vec, trust, state.pre_trans_lst, state.subsequent,
+                                state.order)
+    return check_marking
+
+
+def get_g(cost_vec, pre_tran_lst):
+    g = 0
+    for i in pre_tran_lst:
+        g += cost_vec[i]
+    return g
+
+
+def get_h(h, cost_vec, pre_tran_lst):
+    h_lst = [0]
+    for j in pre_tran_lst:
+        for i in j:
+            h -= cost_vec[i]
+        h_lst.append(h)
+    return max(h_lst)
 
 
 class SearchTuple:
-    def __init__(self, f, g, h, m, p, t, x, trust, pre_trans_lst, order):
+    def __init__(self, f, g, h, m, p, t, x, trust, pre_trans_lst, subsequent, order):
         self.f = f
         self.g = g
         self.h = h
@@ -339,11 +411,16 @@ class SearchTuple:
         self.x = x
         self.trust = trust
         self.pre_trans_lst = pre_trans_lst
+        self.subsequent = subsequent
         self.order = order
 
     def __lt__(self, other):
-        if self.f != other.f:
-            return self.f < other.f
+        # if self.f != other.f:
+        #     return self.f < other.f
+        if self.f < other.f:
+            return True
+        elif other.f < self.f:
+            return False
         if self.trust != other.trust:
             return self.trust
         max_event1, t1 = get_max_events(self)
@@ -358,7 +435,7 @@ class SearchTuple:
         path2 = get_path_length(other)
         if path1 != path2:
             return path1 > path2
-        if self.order < other.order:
+        if self.order > other.order:
             return True
         else:
             return False
@@ -423,7 +500,7 @@ def check_heuristic(state, ini_vec):
     return True
 
 
-def reconstruct_alignment(state, visited, queued, traversed, lp_solved, restart, trace_length, time_h, ret_tuple_as_trans_desc=False):
+def reconstruct_alignment(state, visited, queued, traversed, lp_solved, restart, time_h, ret_tuple_as_trans_desc=False):
     alignment = list()
     if state.p is not None and state.t is not None:
         parent = state.p
@@ -437,22 +514,21 @@ def reconstruct_alignment(state, visited, queued, traversed, lp_solved, restart,
             while parent.p is not None:
                 alignment = [parent.t.label] + alignment
                 parent = parent.p
-    return {'alignment': alignment,
-            'cost': state.g,
+    return {'cost': state.g,
             'visited_states': visited,
             'queued_states': queued,
             'traversed_arcs': traversed,
             'lp_solved': lp_solved,
             'restart': restart,
-            'trace_length': trace_length,
-            "time_h": time_h
+            "time_h": round(time_h, 6),
+            'alignment': alignment
             }
 
 
-def derive_heuristic(incidence_matrix, cost_vec, x, t, h):
+def derive_heuristic(x, h, t_index, cost):
     x_prime = x.copy()
-    x_prime[incidence_matrix.transitions[t]] -= 1
-    return max(0, h - cost_vec[incidence_matrix.transitions[t]]), x_prime
+    x_prime[t_index] -= 1
+    return max(0, h - cost), x_prime
 
 
 def trust_solution(x):
@@ -462,12 +538,12 @@ def trust_solution(x):
     return True
 
 
-def vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function):
-    ini_vec = incidence_matrix.encode_marking(ini)
-    fini_vec = incidence_matrix.encode_marking(fin)
+def vectorize_initial_final_cost(sync_prod_net, ini, fin, cost_function):
+    ini_vec = sync_prod_net.encode_marking(ini)
+    fini_vec = sync_prod_net.encode_marking(fin)
     cost_vec = [0] * len(cost_function)
     for t in cost_function.keys():
-        cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
+        cost_vec[sync_prod_net.transitions[t]] = cost_function[t]
     return np.array(ini_vec), np.array(fini_vec), np.array(cost_vec)
 
 
@@ -515,16 +591,12 @@ class IncidenceMatrix(object):
 
         a_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
         b_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
-        count = 0
         for p in net.places:
             for a in p.in_arcs:
                 a_matrix[new_p_index[p]][new_t_index[a.source]] += 1
             for a in p.out_arcs:
                 a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
                 b_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
-            # if len(rule_l[count]) == 0 or len(rule_r[count]) == 0:
-            #     continue
-            # count += 1
         return a_matrix, b_matrix, new_p_index, new_t_index
 
     a_matrix = property(__get_a_matrix)
