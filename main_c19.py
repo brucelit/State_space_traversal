@@ -6,6 +6,9 @@ from pm4py.objects.petri_net.importer.variants.pnml import import_net
 from pm4py.algo.conformance.alignments.petri_net.variants import state_equation_a_star
 import warnings
 import pandas as pd
+
+import astar_bid
+import astar_reverse
 import astar_tue
 import astar_tue_cache
 import new_tue
@@ -33,13 +36,12 @@ def search():
 
     # iterate every case in this xes log file
     for case_index, case in enumerate(event_log):
-        print(case_index)
         result2 = {}
         result = {'time_sum': [], 'time_h': [], 'time_diff': [], 'cost': [], 'visited_states': [],
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
         try:
             # loop 5 times and get average
-            for i in range(5):
+            for i in range(3):
                 '''
                 # Choose one of the following align, then save the results in csv file for further analysis
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
@@ -49,9 +51,10 @@ def search():
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # print(align)
                 align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
+                # align = astar_bid.apply(case, model_net, model_im, model_fm)
 
                 # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
-                print(align)
+                # print(align)
                 # align = cache_opt.apply(case, model_net, model_im, model_fm)
 
                 '''

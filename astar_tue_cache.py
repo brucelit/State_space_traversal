@@ -240,55 +240,34 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                 time_h += timeit.default_timer() - start_time
                 lp_solved += 1
                 restart += 1
-                # if max_events + 1 < last_max:
-                #     print("need to restart")
-                #     open_set = []
-                #     order = 0
-                #     ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], 0)
-                #     open_set.append(ini_state)
-                #     closed = set()
-                #     max_events = -1
-                #     already_visited = {ini: 0}
-                #     heapq.heapify(open_set)
-                #     continue
-                # else:
-                # if len(split_lst) == 3:
-                #     lst1 = []
-                #     for i in open_set:
-                #         lst1.append(i.m)
-                #     print(lst1)
+                flag = False
                 cache_set = []
-                # flag = False
-                # print("open set length", len(open_set))
-                # if len(split_lst) == 3:
-                #     for i in open_set:
-                #         max1 = get_max_events(i)
-                #         print(max1)
                 for i in open_set:
                     new_i = get_state(i, x, cost_vec, h)
-                    # a = get_max_events(new_i)
-                    # if a >= max_events and new_i.trust is True:
-                    #     flag = True
+                    a = get_max_events(new_i)
                     cache_set.append(new_i)
-                new_curr = get_state(curr, x, cost_vec, h)
-                cache_set.append(new_curr)
-                print(split_lst, h, len(open_set), len(closed), len(cache_set))
-                open_set = cache_set
-                # if len(split_lst) == 3:
-                #     for i in open_set:
-                #         print(i)
-                heapq.heapify(open_set)
-                max_events = -1
-                # else:
-                #     open_set = []
-                #     order = 0
-                #     ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], 0)
-                #     open_set.append(ini_state)
-                #     closed = set()
-                #     max_events = -1
-                #     already_visited = {ini: 0}
-                #     heapq.heapify(open_set)
-                continue
+                    new_curr = get_state(curr, x, cost_vec, h)
+                    a = get_max_events(new_curr)
+                    if new_curr.trust is True and a >= max_events:
+                        flag = True
+                    cache_set.append(new_curr)
+                if flag:
+                    print(split_lst, h, "check works")
+                    open_set = cache_set
+                    heapq.heapify(open_set)
+                    max_events = -1
+                    continue
+                else:
+                    print(split_lst, h, "check fails")
+                    open_set = []
+                    order = 0
+                    ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [], 0)
+                    open_set.append(ini_state)
+                    closed = set()
+                    max_events = -1
+                    already_visited = {ini: 0}
+                    heapq.heapify(open_set)
+                    continue
 
 
             # Compute the true heuristic for this marking
@@ -297,7 +276,6 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
             h, x = get_exact_heuristic(marking_diff, incidence_matrix, cost_vec)
             time_h += timeit.default_timer() - start_time
             lp_solved += 1
-            # print("h changes", len(closed), curr.pre_trans_lst)
             # Requeue the state if the new estimate is higher than previous estimate
             if h > curr.h:
                 tp = SearchTuple(curr.g + h, curr.g, h, curr.m, curr.p, curr.t, x, True, curr.pre_trans_lst, curr.order)
@@ -328,7 +306,7 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
             traversed += 1
             new_marking = utils.add_markings(curr.m, t.add_marking)
             if new_marking in closed:
-                print("find in close")
+                # print("find in close")
                 continue
             traversed += 1
             g = curr.g + cost
@@ -444,11 +422,6 @@ def get_h(h, cost_vec, pre_tran_lst):
             h -= cost_vec[i]
         h_lst.append(h)
     return max(h_lst)
-
-# def get_h(h, cost_vec, pre_tran_lst):
-#     for j in pre_tran_lst:
-#         h -= cost_vec[j]
-#     return max(h, 0)
 
 
 class SearchTuple:
