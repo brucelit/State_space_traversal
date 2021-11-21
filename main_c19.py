@@ -11,7 +11,6 @@ import astar_bid
 import astar_reverse
 import astar_tue
 import astar_tue_cache
-import new_tue
 import astar_tue_latest
 
 
@@ -77,7 +76,7 @@ def search():
                 # align = astar_bid.apply(case, model_net, model_im, model_fm)
 
                 # Choice 8: the algorithm from pm4py
-                # align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
+                align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
                 # align = astar_pm4py.apply(case, model_net, model_im, model_fm)
                 # print(align['cost'])
 

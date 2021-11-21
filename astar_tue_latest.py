@@ -197,11 +197,12 @@ def prove_validity(state, ini_vec):
     return flag
 
 
-def path_propagate(state, open_set):
-    if len(state.subsequent_state) > 0:
-        for i in open_set:
-            if i.m in state.subsequent_state:
-                path_propagate(i, open_set)
+def path_propagate(subsequent_states, open_set):
+    # iterate states in open set and add new paths to them
+    for state in open_set:
+        if state.m in subsequent_states:
+            path_propagate(state, open_set)
+    return open_set
 
 
 def search(sync_prod_net, ini, fin, cost_function, trace_lst):
@@ -212,7 +213,7 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
     closed = set()
     p_index = sync_prod_net.places
     t_index = sync_prod_net.transitions
-    print(t_index)
+    # print(t_index)
     incidence_matrix = sync_prod_net.a_matrix
     consumption_matrix = sync_prod_net.b_matrix
     trace_sync = [[] for i in range(len(trace_lst))]
@@ -243,6 +244,8 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
         # get the most promising marking
         curr = heapq.heappop(open_set)
 
+        # if len(split_lst) >= 4:
+        #     print(curr.pre_trans_lst)
         # final marking reached
         if curr.m == fin:
             print(curr.pre_trans_lst)
@@ -258,22 +261,19 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                 split_lst.append(max_events+1)
                 start_time = timeit.default_timer()
                 splits = sorted(split_lst)
+                print(splits, len(closed))
+
                 h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, splits,
                                          incidence_matrix, consumption_matrix,
                                          t_index, p_index,
                                          trace_sync, trace_log)
+                if len(split_lst) == 5:
+                    save_set = []
+                    for i in open_set:
+                        if get_state2(i, x):
+                            print(i.m)
+                            save_set.append(i.m)
                 time_h += timeit.default_timer() - start_time
-                print(split_lst, h, len(open_set), len(closed))
-                # if len(split_lst) == 3:
-                #     save_set = []
-                #     for i in open_set:
-                #         save_set.append(i.m)
-                #         # print("\n", i.pre_trans_lst)
-                #         flag = prove_validity(i, x)
-                #         if flag:
-                #             print("it is true", i.pre_trans_lst)
-                #     save_set2 = open_set
-
                 lp_solved += 1
                 restart += 1
                 open_set = []
@@ -311,16 +311,10 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
         # Update max events explained
         new_max_events = get_max_events(curr)
         if new_max_events > max_events:
+            # if len(split_lst) == 3:
+            #     print(new_max_events)
             max_events = new_max_events
-        if len(split_lst) == 3:
-            if curr.m in save_set:
-                for i in save_set2:
-                    if i.m == curr.m:
-                        print("\n", i.trust, i.pre_trans_lst,"\n", curr.trust, curr.pre_trans_lst)
-                        if set(i.pre_trans_lst) == set(curr.pre_trans_lst):
-                            print("same path")
-                        else:
-                            print("diff path")
+
         enabled_trans = set()
         for p in curr.m:
             for t in p.ass_trans:
@@ -332,18 +326,6 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
             traversed += 1
             new_marking = utils.add_markings(curr.m, t.add_marking)
             if new_marking in closed:
-                # propagate all the possible path to following
-                # path_propagate(new_marking)
-                # print("true")
-                # pre_trans = deepcopy(curr.pre_trans_lst)
-                # pre_trans.append(t_index[t])
-                # set1 = set(pre_trans)
-                # set2 = set(already_visited2[new_marking])
-                # if set1 == set2:
-                #     print("the same")
-                # else:
-                #     print("not same")
-                # print("find in close", curr.g + cost, "\n", already_visited2[new_marking], "\n", pre_trans)
                 continue
             traversed += 1
             g = curr.g + cost
@@ -393,6 +375,18 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                                 i.order = curr.order + 1
                                 i.trust = True
                                 # break
+
+
+def get_state2(state, ini_vec):
+    solution_vec = deepcopy(ini_vec)
+    trust = True
+    for j in state.pre_trans_lst:
+        solution_vec[j] -= 1
+        # when the solution vector encounters -1, means no longer trustable
+        if solution_vec[j] < 0:
+            trust = False
+            continue
+    return trust
 
 
 def get_state(state, ini_vec, cost_vec, h):

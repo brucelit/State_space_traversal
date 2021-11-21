@@ -181,8 +181,8 @@ def apply_trace_net(petri_net, initial_marking, final_marking, trace_net, trace_
                            backward_final_marking,
                            backward_cost_function,
                            trace_lst,
-                           utils.SKIP,
-                           max_align_time_trace=max_align_time_trace)
+                           utils.SKIP
+                           )
 
 
 def apply_sync_prod(forward_sync_net,
@@ -196,26 +196,26 @@ def apply_sync_prod(forward_sync_net,
     decorate_transitions_prepostset(forward_sync_net)
     decorate_places_preset_trans(forward_sync_net)
     forward_incidence_matrix = construct(forward_sync_net)
-    forward_split_dict = {None: -1}
     visited = 0
     queued = 0
     traversed = 0
     lp_solved = 1
-    forward_trace_sync = [None for i in range(0, len(trace_lst))]
+    forward_trace_sync = [[] for i in range(0, len(trace_lst))]
     forward_trace_log = [None for i in range(0, len(trace_lst))]
+
     t_index = forward_incidence_matrix.transitions
     for t in forward_sync_net.transitions:
         for i in range(len(trace_lst)):
             if trace_lst[i].name == t.name[0] and t.label[1] == ">>":
                 forward_trace_log[i] = t_index[t]
             if trace_lst[i].name == t.name[0] and t.label[1] != ">>":
-                forward_trace_sync[i] = t_index[t]
+                forward_trace_sync[i].append(t_index[t])
     decorate_transitions_prepostset(backward_sync_net)
     decorate_places_preset_trans(backward_sync_net)
     backward_incidence_matrix = construct(backward_sync_net)
-    backward_split_dict = {None: -1}
+    print(trace_lst)
     trace_lst.reverse()
-    backward_trace_sync = [None for i in range(0, len(trace_lst))]
+    backward_trace_sync = [[] for i in range(0, len(trace_lst))]
     backward_trace_log = [None for i in range(0, len(trace_lst))]
     t_index = backward_incidence_matrix.transitions
     for t in backward_sync_net.transitions:
@@ -223,33 +223,36 @@ def apply_sync_prod(forward_sync_net,
             if trace_lst[i].name == t.name[0] and t.label[1] == ">>":
                 backward_trace_log[i] = t_index[t]
             if trace_lst[i].name == t.name[0] and t.label[1] != ">>":
-                backward_trace_sync[i] = t_index[t]
+                backward_trace_sync[i].append(t_index[t])
     start_time = timeit.default_timer()
     time_h = 0
+    forward_split_lst, backward_split_lst = [-1], [-1]
+
     res = search(forward_sync_net, forward_initial_marking, forward_final_marking,
                   forward_cost_function, forward_trace_sync, forward_trace_log,
-                  {}, forward_incidence_matrix, forward_split_dict,
+                  {}, forward_incidence_matrix,forward_split_lst,
                   backward_sync_net, backward_initial_marking, backward_final_marking,
                   backward_cost_function, backward_trace_sync, backward_trace_log,
-                  {}, backward_incidence_matrix, backward_split_dict,
+                  {}, backward_incidence_matrix,backward_split_lst,
                   skip, 0, 0, visited, queued, traversed, lp_solved, time_h)
     res['time_sum'] = timeit.default_timer() - start_time
     res['time_diff'] = res['time_sum'] - res['time_h']
+    print(res)
     return res
 
 
 def search(forward_sync_net, forward_ini, forward_fin,
            forward_cost_function, forward_trace_sync, forward_trace_log,
-           forward_init_dict, forward_incidence_matrix, forward_split_lst,
+           forward_init_dict, forward_incidence_matrix,forward_split_lst,
            backward_sync_net, backward_ini, backward_fin,
            backward_cost_function, backward_trace_sync, backward_trace_log,
-           backward_init_dict, backward_incidence_matrix, backward_split_lst,
+           backward_init_dict, backward_incidence_matrix,backward_split_lst,
            skip, restart, visited, queued, traversed, lp_solved, time_h,
            forward_closed={},
            backward_closed={},
            forward_use_init=False,
            backward_use_init=False,
-           search_forward=True):
+           search_forward=False):
 
     # search from backward
     if not search_forward:
@@ -259,11 +262,12 @@ def search(forward_sync_net, forward_ini, forward_fin,
         backward_closed = {}
         t_index = backward_incidence_matrix.transitions
         p_index = backward_incidence_matrix.places
+        print(t_index)
         if backward_use_init:
             h, x, trustable = backward_init_dict['h'], backward_init_dict['x'], True
         else:
             start_time = timeit.default_timer()
-            h, x = get_exact_heuristic(ini_vec, fin_vec, backward_incidence_matrix.a_matrix, cost_vec)
+            h, x = get_exact_heuristic(fin_vec-ini_vec, backward_incidence_matrix.a_matrix, cost_vec)
             time_h += timeit.default_timer() - start_time
         open_set = []
         order = 0
@@ -281,19 +285,20 @@ def search(forward_sync_net, forward_ini, forward_fin,
             curr = heapq.heappop(open_set)
             # final marking reached
             if curr.m == backward_fin:
-                # print("max", max(forward_split_lst.values()), max(backward_split_lst.values()), len(backward_trace_log))
                 return reconstruct_alignment(curr, visited, queued, traversed, restart,
-                                             len(backward_trace_log), forward_split_lst, backward_split_lst,
+                                             backward_split_lst,
+                                             # len(backward_trace_log), forward_split_lst, backward_split_lst,
                                              lp_solved, time_h)
 
             if not curr.trust:
                 # check if s is not already a split point in K
-                if max_events not in forward_split_lst.values():
-                    backward_split_lst.update({split_point: max_events})
+                if max_events not in backward_split_lst:
+                    print(max_events, backward_split_lst)
+                    backward_split_lst.append(max_events)
                     start_time = timeit.default_timer()
-                    h, x, trustable = get_ini_heuristic(ini_vec, fin_vec, cost_vec,
+                    h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, sorted(backward_split_lst[1:]),
                                                             backward_incidence_matrix.a_matrix,
-                                                            backward_incidence_matrix.b_matrix, list(backward_split_lst.values()),
+                                                            backward_incidence_matrix.b_matrix,
                                                             t_index, p_index,
                                                             backward_trace_sync, backward_trace_log)
                     time_h += timeit.default_timer() - start_time
@@ -302,8 +307,8 @@ def search(forward_sync_net, forward_ini, forward_fin,
                     backward_init_dict['h'] = h
                     backward_use_init = True
                     # during backward search, if max > forward, change direction
-                    if max(forward_split_lst.values()) < max(backward_split_lst.values()):
-                        search_forward = True
+                    if max(forward_split_lst) < max(backward_split_lst):
+                        search_forward = False
                     else:
                         search_forward = False
                     restart += 1
@@ -322,8 +327,7 @@ def search(forward_sync_net, forward_ini, forward_fin,
 
                 # compute the true heuristic
                 start_time = timeit.default_timer()
-                h, x = get_exact_heuristic(backward_incidence_matrix.encode_marking(curr.m),
-                                               fin_vec,
+                h, x = get_exact_heuristic(fin_vec-backward_incidence_matrix.encode_marking(curr.m),
                                                backward_incidence_matrix.a_matrix,
                                                cost_vec)
                 time_h += timeit.default_timer() - start_time
@@ -338,10 +342,9 @@ def search(forward_sync_net, forward_ini, forward_fin,
             backward_closed[str(curr.m)] = curr
             new_max_events, last_sync = get_max_events(curr)
             if len(backward_trace_log) - new_max_events + 1 > max_events and last_sync is not None \
-                    and len(backward_trace_log) - new_max_events + 1 not in backward_split_lst.values():
+                    and len(backward_trace_log) - new_max_events + 1 not in backward_split_lst:
                 max_events = len(backward_trace_log) - new_max_events + 1
-                split_point = last_sync
-                if max_events > len(backward_trace_log) - max(forward_split_lst.values()):
+                if max_events > len(backward_trace_log) - max(forward_split_lst):
                     intersect = backward_closed.keys() & forward_closed.keys()
                     if len(intersect) > 0:
                         for curr in intersect:
@@ -411,7 +414,7 @@ def search(forward_sync_net, forward_ini, forward_fin,
             h, x, trustable = forward_init_dict['h'], forward_init_dict['x'], True
         else:
             start_time = timeit.default_timer()
-            h, x = get_exact_heuristic(ini_vec, fin_vec, forward_incidence_matrix.a_matrix, cost_vec)
+            h, x = get_exact_heuristic(fin_vec-ini_vec, forward_incidence_matrix.a_matrix, cost_vec)
             time_h += timeit.default_timer() - start_time
         open_set = []
         order = 0
@@ -438,12 +441,13 @@ def search(forward_sync_net, forward_ini, forward_fin,
             if not curr.trust:
 
                 # check if s is not already a splitpoint in K
-                if max_events not in forward_split_lst.values():
-                    forward_split_lst.update({split_point: max_events})
+                if max_events+1 not in forward_split_lst:
+                    forward_split_lst.append(max_events)
                     start_time = timeit.default_timer()
-                    h, x, trustable = get_ini_heuristic(ini_vec, fin_vec, cost_vec,
+                    print(forward_trace_log, forward_trace_sync)
+                    h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, sorted(forward_split_lst[1:]),
                                                             forward_incidence_matrix.a_matrix,
-                                                            forward_incidence_matrix.b_matrix, list(forward_split_lst.values()),
+                                                            forward_incidence_matrix.b_matrix,
                                                             t_index, p_index,
                                                             forward_trace_sync, forward_trace_log)
                     time_h += timeit.default_timer() - start_time
@@ -453,18 +457,18 @@ def search(forward_sync_net, forward_ini, forward_fin,
                     forward_use_init = True
 
                     # during forward search, change direction if max > backward
-                    if max(forward_split_lst.values()) > max(backward_split_lst.values()):
+                    if max(forward_split_lst) > max(backward_split_lst):
                         search_forward = False
                         if len(backward_split_lst) > 1:
                             backward_use_init = True
                         else:
-                            backward_use_init = False
+                            backward_use_init = True
                     else:
                         search_forward = True
                         if len(backward_split_lst) > 1:
                             backward_use_init = True
                         else:
-                            backward_use_init = False
+                            backward_use_init = True
                     restart += 1
                     return search(forward_sync_net, forward_ini, forward_fin,
                                   forward_cost_function, forward_trace_sync, forward_trace_log,
@@ -481,8 +485,7 @@ def search(forward_sync_net, forward_ini, forward_fin,
 
                 # compute the true heuristic
                 start_time = timeit.default_timer()
-                h, x = get_exact_heuristic(forward_incidence_matrix.encode_marking(curr.m),
-                                               fin_vec,
+                h, x = get_exact_heuristic(fin_vec-forward_incidence_matrix.encode_marking(curr.m),
                                                forward_incidence_matrix.a_matrix,
                                                cost_vec)
                 time_h += timeit.default_timer() - start_time
@@ -498,10 +501,10 @@ def search(forward_sync_net, forward_ini, forward_fin,
             forward_closed[str(curr.m)] = curr
             new_max_events, last_sync = get_max_events(curr)
             if new_max_events > max_events and last_sync is not None \
-                    and new_max_events not in forward_split_lst.values():
+                    and new_max_events not in forward_split_lst:
                 max_events = new_max_events
                 split_point = last_sync
-                if max_events > len(backward_trace_log) - max(backward_split_lst.values()):
+                if max_events > len(backward_trace_log) - max(backward_split_lst):
                     intersect = backward_closed.keys() & forward_closed.keys()
                     if len(intersect) > 0:
                         for curr in intersect:

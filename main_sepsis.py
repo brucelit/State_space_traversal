@@ -7,6 +7,7 @@ from pm4py.algo.conformance.alignments.petri_net.variants import state_equation_
 import warnings
 import pandas as pd
 import astar_tue
+import astar_tue_cache
 import astar_tue_latest
 import new_tue
 
@@ -28,7 +29,7 @@ def search():
                    ]
     
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_new2.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_cache.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index, case in enumerate(event_log):
@@ -47,7 +48,9 @@ def search():
                 # and datastructures" from Eindhoven University
                 '''
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
-                align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
+
                 # print(align['cost'], "\n")
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # align = cache_opt.apply(case, model_net, model_im, model_fm)
@@ -94,7 +97,7 @@ def search():
             result2['cost'] = statistics.mean(result['cost'])
             result2['restart'] = statistics.mean(result['restart'])
 
-            with open('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_new2.csv', 'a') as f_object:
+            with open('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_cache.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(result2)
@@ -104,14 +107,14 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_new2.csv', 'a') as f_object:
+            with open('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_cache.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
 
-    df = pd.read_csv('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_new2.csv')
+    df = pd.read_csv('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_cache.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -122,7 +125,7 @@ def search():
                                                      "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_new2.csv', index=False)
+    df3.to_csv('F:\Thesis\data\sepsis_astar_tue\sepsis_astar_tue_cache.csv', index=False)
 
 
 if __name__ == "__main__":

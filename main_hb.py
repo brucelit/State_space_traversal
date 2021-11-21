@@ -39,15 +39,15 @@ def search():
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
         try:
             # loop 5 times and get average
-            for i in range(6):
+            for i in range(5):
                 '''
                 # Choose one of the following align, then save the results in csv file for further analysis
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
                 # and datastructures" from Eindhoven University
                 '''
-                align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
+                # align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
 
-                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
                 # print(align['cost'], "\n")
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # align = cache_opt.apply(case, model_net, model_im, model_fm)
