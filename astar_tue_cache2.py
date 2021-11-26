@@ -357,9 +357,13 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                             # print("smaller or equal g", t_index[t], trustable, new_marking, i.trust, trustable, i.pre_trans_lst)
                             i.g = g
                             # 这里是个问题哦！！
-                            if trustable and not i.trust:
-                                i.h, i.x = h, deepcopy(x)
-                                i.trust = trustable or i.trust
+                            if trustable:
+                                if not i.trust:
+                                    i.h, i.x = h, deepcopy(x)
+                                    i.trust = trustable
+                                else:
+                                    for ele in x:
+                                        i.x.append(ele)
                             i.f = i.g + i.h
                             i.t = t
                             i.p = curr
