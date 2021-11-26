@@ -232,8 +232,7 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
     h, x = get_exact_heuristic(marking_diff, incidence_matrix, cost_vec)
     time_h += timeit.default_timer() - start_time
     lp_solved += 1
-
-    ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [[]], [])
+    ini_state = SearchTuple(0 + h, 0, h, ini, None, None, x, True, [[]])
     open_set = [ini_state]
     cache_set = []
     heapq.heapify(open_set)
@@ -245,7 +244,6 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
             # get the most promising marking
             curr = heapq.heappop(open_set)
             # Heuristic of m is not exact, add to cache set and continue
-            # print("curr", curr.pre_trans_lst)
 
             if not curr.trust:
                 cache_set.append(curr)
@@ -276,9 +274,6 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
             for t, cost in trans_to_visit_with_cost:
                 traversed += 1
                 new_marking = utils.add_markings(curr.m, t.add_marking)
-                # if new_marking not in closed[curr.m].subsequent:
-                #     closed[curr.m].subsequent.append(new_marking)
-
                 traversed += 1
                 g = curr.g + cost
                 h, x = derive_heuristic(curr.x, curr.h, t_index[t], cost)
@@ -286,14 +281,11 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
 
                 # if the state is in closed, we need to check whether new possible paths leading to it
                 if new_marking in closed:
-                    # if len(split_lst):
-                    #     print(True, "\n", curr.pre_trans_lst, "\n", closed[new_marking].pre_trans_lst)
-                    flag = True
                     # add possible new path to closed set
+                    flag = True
                     pre_trans = deepcopy(curr.pre_trans_lst)
                     for j in pre_trans:
                         j.append(t_index[t])
-
                     # use mark to indicate which one in pre_trans to append
                     mark = [1 for i in range(len(pre_trans))]
                     count = 0
@@ -311,14 +303,13 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                     # no new paths, continue
                     if flag:
                         continue
-                    # print("remove", closed[new_marking].m, "\n", closed[new_marking].f, closed[new_marking].g, closed[new_marking].h,
-                    #       closed[new_marking].pre_trans_lst)
 
                     update_tp = closed[new_marking]
                     update_tp.trust = trustable or update_tp.trust
                     update_tp.h = h
                     update_tp.x = x
                     update_tp.g = min(update_tp.g, g)
+                    update_tp.t = t
                     update_tp.f = update_tp.g + update_tp.h
                     # print("add", update_tp.f, update_tp.g, update_tp.h, update_tp.pre_trans_lst)
                     heapq.heappush(open_set, update_tp)
@@ -333,7 +324,7 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                     for j in pre_trans:
                         j.append(t_index[t])
 
-                    tp = SearchTuple(g + h, g, h, new_marking, curr, t, x, trustable, pre_trans, [])
+                    tp = SearchTuple(g + h, g, h, new_marking, curr, t, x, trustable, pre_trans)
                     queued += 1
                     heapq.heappush(open_set, tp)
                     continue
@@ -383,22 +374,23 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
             split_lst.append(max_events + 1)
             start_time = timeit.default_timer()
             splits = sorted(split_lst)
-            print(splits, len(cache_set), len(closed))
             h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, splits,
                                      incidence_matrix, consumption_matrix,
                                      t_index, p_index, trace_sync, trace_log)
+            print(splits, h, x, len(cache_set), len(closed))
+
             time_h += timeit.default_timer() - start_time
             lp_solved += 1
             restart += 1
             open_set = []
+
             for i in cache_set:
                 new_i = get_state(i, x, cost_vec, h)
-                if new_i.trust:
-                    print("valid", new_i.m, new_i.pre_trans_lst)
                 open_set.append(new_i)
-            # if len(split_lst) == 5:
-            #     for k in cache_set:
-            #         print(k.m, k.pre_trans_lst)
+            if len(split_lst) == 1:
+                for i in open_set:
+                    if i.trust:
+                        print(i.m, i.pre_trans_lst)
             cache_set = []
             max_events = -1
             heapq.heapify(open_set)
@@ -406,11 +398,11 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
 
 
 def get_state(state, ini_vec, cost_vec, h):
-    solution_vec = deepcopy(ini_vec)
     trust = False
     bool_lst = [1 for i in range(len(state.pre_trans_lst))]
     count = 0
     for j in state.pre_trans_lst:
+        solution_vec = deepcopy(ini_vec)
         for i in range(len(j)):
             solution_vec[j[i]] -= 1
             # when the solution vector encounters -1, means no longer trustable
@@ -446,7 +438,7 @@ def get_h(h, cost_vec, pre_tran_lst):
 
 
 class SearchTuple:
-    def __init__(self, f, g, h, m, p, t, x, trust, pre_trans_lst, subsequent):
+    def __init__(self, f, g, h, m, p, t, x, trust, pre_trans_lst):
         self.f = f
         self.g = g
         self.h = h
@@ -456,7 +448,7 @@ class SearchTuple:
         self.x = x
         self.trust = trust
         self.pre_trans_lst = pre_trans_lst
-        self.subsequent = subsequent
+        # self.subsequent = subsequent
 
     def __lt__(self, other):
         if self.f < other.f:

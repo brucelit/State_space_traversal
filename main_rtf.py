@@ -8,8 +8,8 @@ import warnings
 import pandas as pd
 import astar_tue
 import astar_tue_cache
+import astar_tue_cache2
 import astar_tue_latest
-import new_tue
 
 
 def search():
@@ -49,7 +49,7 @@ def search():
                 '''
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
-                align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
+                align = astar_tue_cache2.apply(case, model_net, model_im, model_fm)
 
                 # print(align['cost'], "\n")
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)

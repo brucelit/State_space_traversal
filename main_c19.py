@@ -11,6 +11,7 @@ import astar_bid
 import astar_reverse
 import astar_tue
 import astar_tue_cache
+import astar_tue_cache2
 import astar_tue_latest
 
 
@@ -29,7 +30,7 @@ def search():
                    "restart",
                    'cost'
                    ]
-    #
+
     df = pd.DataFrame(columns=field_names)
     df.to_csv('F:\Thesis\data\c19_astar_tue\c19_astar_tue_cache.csv', sep=',', index=False)
 
@@ -40,7 +41,7 @@ def search():
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
         try:
             # loop 5 times and get average
-            for i in range(3):
+            for i in range(5):
                 '''
                 # Choose one of the following align, then save the results in csv file for further analysis
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
@@ -49,10 +50,11 @@ def search():
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # print(align)
-                align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
+                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+
+                align = astar_tue_cache2.apply(case, model_net, model_im, model_fm)
                 # align = astar_bid.apply(case, model_net, model_im, model_fm)
 
-                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
                 # print(align)
                 # align = cache_opt.apply(case, model_net, model_im, model_fm)
 
@@ -76,7 +78,7 @@ def search():
                 # align = astar_bid.apply(case, model_net, model_im, model_fm)
 
                 # Choice 8: the algorithm from pm4py
-                align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
+                # align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
                 # align = astar_pm4py.apply(case, model_net, model_im, model_fm)
                 # print(align['cost'])
 
