@@ -11,6 +11,7 @@ import astar_pm4py
 import astar_tue
 import astar_tue_cache
 import astar_tue_latest
+from tqdm import tqdm
 
 
 def search():
@@ -29,11 +30,10 @@ def search():
                    'cost']
     
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\hb_astar_tue\hb_astar_tue_cache.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\hb_astar_tue\hb_astar_tue_1211.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
-    for case_index, case in enumerate(event_log):
-        print(case_index)
+    for case_index in tqdm(range(len(event_log))):
         result2 = {}
         result = {'time_sum': [], 'time_h': [], 'time_diff': [], 'cost': [], 'visited_states': [],
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
@@ -46,8 +46,9 @@ def search():
                 # and datastructures" from Eindhoven University
                 '''
                 # align = astar_tue_cache.apply(case, model_net, model_im, model_fm)
-
-                align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+                align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
                 # print(align['cost'], "\n")
                 # align = astar_tue.apply(case, model_net, model_im, model_fm)
                 # align = cache_opt.apply(case, model_net, model_im, model_fm)
@@ -94,7 +95,7 @@ def search():
             result2['cost'] = statistics.mean(result['cost'])
             result2['restart'] = statistics.mean(result['restart'])
 
-            with open('F:\Thesis\data\hb_astar_tue\hb_astar_tue_cache.csv', 'a') as f_object:
+            with open('F:\Thesis\data\hb_astar_tue\hb_astar_tue_1211.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(result2)
@@ -104,14 +105,14 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\hb_astar_tue\hb_astar_tue_cache.csv', 'a') as f_object:
+            with open('F:\Thesis\data\hb_astar_tue\hb_astar_tue_1211.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
 
-    df = pd.read_csv('F:\Thesis\data\hb_astar_tue\hb_astar_tue_cache.csv')
+    df = pd.read_csv('F:\Thesis\data\hb_astar_tue\hb_astar_tue_1211.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -122,7 +123,7 @@ def search():
                                                      "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\hb_astar_tue\hb_astar_tue_cache.csv', index=False)
+    df3.to_csv('F:\Thesis\data\hb_astar_tue\hb_astar_tue_1211.csv', index=False)
 
 
 if __name__ == "__main__":

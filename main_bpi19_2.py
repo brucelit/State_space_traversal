@@ -9,48 +9,50 @@ import pandas as pd
 
 import astar_pm4py
 import astar_tue
-import new_tue
 import astar_tue_latest
+from tqdm import tqdm
 
 
 def search():
     # Here to change the log file in dataset: the .xes file
-    event_log = xes_importer.apply('F:\Thesis\data\BPIC19_2_213.xes')
+    event_log = xes_importer.apply('F:\Thesis\data\BPIC19_2_101.xes')
     # Here to change the model in dataset: the .pnml file
     model_net, model_im, model_fm = import_net('F:\Thesis\data\BPIC19_2_IM.pnml')
     # the colunm name in result csv file
     field_names = ["time_sum",
                    "time_h",
+                   "time_heapify",
                    "time_diff",
                    "lp_solved",
                    "visited_states",
                    "traversed_arcs",
-                   # "restart",
+                   "restart",
                    'cost']
     
     # df = pd.DataFrame(columns=field_names)
-    # df.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_pm4py.csv', sep=',', index=False)
+    # df.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_1210.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
-    for case_index, case in enumerate(event_log):
-        print(case_index)
+    for case_index in tqdm(range(len(event_log))):
         result2 = {}
-        result = {'time_sum': [], 'time_h': [], 'time_diff': [], 'cost': [], 'visited_states': [],
+        result = {'time_sum': [], 'time_h': [], 'time_heapify':[], 'time_diff': [], 'cost': [], 'visited_states': [],
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
         try:
             # loop 5 times and get average
-            for i in range(5):
+            for i in range(1):
                 '''
                 # Choose one of the following align, then save the results in csv file for further analysis
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
                 # and datastructures" from Eindhoven University
                 '''
-                # align = astar_tue.apply(case, model_net, model_im, model_fm)
-                align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
+                # print(align)
+                align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+                align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+                print(align)
+                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
                 # print(align)
 
-                # print("cost", align['cost'], "\n")
-                # align = new_tue.apply(case, model_net, model_im, model_fm)
                 '''
                 # Choice 2: the algorithm from in paper "Improving Alignment Computation
                 # using Model-based Preprocessing" from Eindhoven University
@@ -71,14 +73,15 @@ def search():
                 # align = astar_bid.apply(case, model_net, model_im, model_fm)
 
                 # Choice 8: the algorithm from pm4py
-                # align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
-
+                # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
+                # print(align)
                 # align = astar_pm4py.apply(case, model_net, model_im, model_fm)
                 # print(align)
 
                 result['time_sum'].append(align['time_sum'])
                 result['time_h'].append(align['time_h'])
                 result['time_diff'].append(align['time_diff'])
+                result['time_heapify'].append(align['time_heapify'])
                 result['cost'].append(align['cost'])
                 result['visited_states'].append(align['visited_states'])
                 result['traversed_arcs'].append(align['traversed_arcs'])
@@ -87,6 +90,7 @@ def search():
 
             result2['time_sum'] = statistics.mean(result['time_sum'])
             result2['time_h'] = statistics.mean(result['time_h'])
+            result2['time_heapify'] = statistics.mean(result['time_heapify'])
             result2['time_diff'] = statistics.mean(result['time_diff'])
             result2['lp_solved'] = statistics.mean(result['lp_solved'])
             result2['visited_states'] = statistics.mean(result['visited_states'])
@@ -94,7 +98,7 @@ def search():
             result2['cost'] = statistics.mean(result['cost'])
             result2['restart'] = statistics.mean(result['restart'])
 
-            # with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_pm4py.csv', 'a') as f_object:
+            # with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_1210.csv', 'a') as f_object:
             #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             #     # Pass the dictionary as an argument to the Writerow()
             #     dictwriter_object.writerow(result2)
@@ -104,14 +108,14 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_pm4py.csv', 'a') as f_object:
+            with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_1210.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
 
-    # df = pd.read_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_pm4py.csv')
+    # df = pd.read_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_1210.csv')
     # total = df.sum()
     # df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
     #                                                  "time_h",
@@ -119,10 +123,10 @@ def search():
     #                                                  "lp_solved",
     #                                                  "visited_states",
     #                                                  "traversed_arcs",
-    #                                                  # "restart",
+    #                                                  "restart",
     #                                                  "cost"])
     # df3 = pd.concat([df2, df]).reset_index(drop=True)
-    # df3.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_pm4py.csv', index=False)
+    # df3.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_astar_1210.csv', index=False)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ def search():
                    'cost']
     
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_pm4py.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_1210.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index, case in enumerate(event_log):
@@ -94,7 +94,7 @@ def search():
             result2['cost'] = statistics.mean(result['cost'])
             # result2['restart'] = statistics.mean(result['restart'])
 
-            with open('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_pm4py.csv', 'a') as f_object:
+            with open('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_1210.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(result2)
@@ -104,14 +104,14 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_pm4py.csv', 'a') as f_object:
+            with open('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_1210.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
 
-    df = pd.read_csv('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_pm4py.csv')
+    df = pd.read_csv('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_1210.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -122,7 +122,7 @@ def search():
                                                      # "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_pm4py.csv', index=False)
+    df3.to_csv('F:\Thesis\data\BPIC19_4_astar_tue\BPIC19_4_astar_1210.csv', index=False)
 
 
 if __name__ == "__main__":

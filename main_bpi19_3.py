@@ -9,7 +9,6 @@ import pandas as pd
 
 import astar_pm4py
 import astar_tue
-import new_tue
 import astar_tue_latest
 
 
@@ -29,7 +28,7 @@ def search():
                    'cost']
     
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_new2.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_1128.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index, case in enumerate(event_log):
@@ -45,8 +44,8 @@ def search():
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
                 # and datastructures" from Eindhoven University
                 '''
-                # align = astar_tue.apply(case, model_net, model_im, model_fm)
-                align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                align = astar_tue.apply(case, model_net, model_im, model_fm)
+                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
                 # print(align)
 
                 # print("cost", align['cost'], "\n")
@@ -94,7 +93,7 @@ def search():
             result2['cost'] = statistics.mean(result['cost'])
             result2['restart'] = statistics.mean(result['restart'])
 
-            with open('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_new2.csv', 'a') as f_object:
+            with open('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_1128.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(result2)
@@ -104,14 +103,14 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_new2.csv', 'a') as f_object:
+            with open('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_1128.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
 
-    df = pd.read_csv('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_new2.csv')
+    df = pd.read_csv('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_1128.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -122,7 +121,7 @@ def search():
                                                      "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_new2.csv', index=False)
+    df3.to_csv('F:\Thesis\data\BPIC19_3_astar_tue\BPIC19_3_astar_tue_1128.csv', index=False)
 
 
 if __name__ == "__main__":

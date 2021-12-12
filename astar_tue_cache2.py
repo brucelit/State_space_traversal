@@ -304,7 +304,6 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                         if mark[i] == 1:
                             flag = True
                             closed[new_marking].pre_trans_lst.append(pre_trans[i])
-                    # print("in closed", t_index[t],  trustable, new_marking, trustable, closed[new_marking].pre_trans_lst)
 
                     # no new paths, continue
                     if flag:
@@ -325,12 +324,11 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                     pre_trans = deepcopy(curr.pre_trans_lst)
                     for j in pre_trans:
                         j.append(t_index[t])
-                    tp = SearchTuple(g + h, g, h, new_marking, curr, t, deepcopy(x), trustable, pre_trans)
+                    tp = SearchTuple(g + h, g, h, new_marking, curr, t, deepcopy(x), trustable, deepcopy(pre_trans))
                     # if len(split_lst) == 9:
                     # print("not visited", t_index[t], trustable, new_marking, trustable, pre_trans, "\n", deepcopy(x))
                     queued += 1
                     heapq.heappush(open_set, tp)
-                    continue
 
                 # new marking has shorter path
                 elif g <= already_visited[new_marking]:
@@ -356,29 +354,29 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                             # if len(split_lst) == 9:
                             # print("smaller or equal g", t_index[t], trustable, new_marking, i.trust, trustable, i.pre_trans_lst)
                             i.g = g
-                            # 这里是个问题哦！！
                             if trustable:
                                 if not i.trust:
                                     i.h, i.x = h, deepcopy(x)
+                                    i.t = t
+                                    i.p = curr
                                     i.trust = trustable
                                 else:
-                                    for ele in x:
+                                    for ele in deepcopy(x):
                                         i.x.append(ele)
                             i.f = i.g + i.h
-                            i.t = t
-                            i.p = curr
                             break
 
                 # new marking has longer path, but the heuristic change from invalid to valid
                 else:
-                    # print("longer", new_marking, trustable)
                     if trustable:
                         for i in open_set:
                             if i.m == new_marking:
                                 if not i.trust:
-                                    i.h, i.x = h, x
+                                    print("longer", new_marking, trustable)
+                                    i.h, i.x = h, deepcopy(x)
                                     i.f = i.g + i.h
                                     i.trust = True
+                            break
 
         # check if s is not already a split point in K
         if max_events + 1 not in split_lst and max_events < len(trace_lst) - 1:
@@ -389,7 +387,6 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
                                      incidence_matrix, consumption_matrix,
                                      t_index, p_index, trace_sync, trace_log)
             print(splits, h, len(cache_set), len(closed))
-
             time_h += timeit.default_timer() - start_time
             lp_solved += 1
             restart += 1
@@ -402,24 +399,19 @@ def search(sync_prod_net, ini, fin, cost_function, trace_lst):
 
             # use flag to indicate whether valid states exist
             flag = True
-
             for i in cache_set:
                 new_i = get_state(i, x, cost_vec, h)
                 open_set.append(new_i)
                 if new_i.trust:
-                    # print("become true")
                     flag = False
-
             cache_set = []
             max_events = -1
-
             if flag:
-                # print("restart")
+                print("complete restart", split_lst)
                 closed = {}
-                solution_vec = [x]
-                ini_state = SearchTuple(0 + h, 0, h, ini, None, None, solution_vec, True, [[]])
+                solution_vec = [deepcopy(x)]
+                ini_state = SearchTuple(0 + h, 0, h, ini, None, None, deepcopy(solution_vec), True, [[]])
                 open_set = [ini_state]
-                cache_set = []
                 heapq.heapify(open_set)
                 already_visited = {ini: 0}
             heapq.heapify(open_set)
