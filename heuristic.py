@@ -6,11 +6,11 @@ from gurobipy import GRB
 
 
 def get_ini_heuristic(ini_vec, fin_vec, cost, split_lst,
-                          incidence_matrix,
-                          consumption_matrix,
-                          t_index, p_index,
-                          trace_lst_sync,
-                          trace_lst_log):
+                      incidence_matrix,
+                      consumption_matrix,
+                      t_index, p_index,
+                      trace_lst_sync,
+                      trace_lst_log):
     # Define problem
     m = gp.Model()
     m.Params.LogToConsole = 0
@@ -62,9 +62,6 @@ def get_ini_heuristic(ini_vec, fin_vec, cost, split_lst,
     return m.objVal, np.array(x.X).sum(axis=0) + np.array(y.X).sum(axis=0)
 
 
-# marking_diff = fin_vec - incidence_matrix.encode_marking(curr.m)
-# h, x = get_exact_heuristic(marking_diff, a_matrix, cost_vec)
-
 # compute the exact heuristic of marking m
 def get_exact_heuristic(marking_diff, incidence_matrix, cost_vec):
     m = gp.Model()
@@ -81,11 +78,11 @@ def get_exact_heuristic(marking_diff, incidence_matrix, cost_vec):
 def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_matrix, cost_vec, max_rank, trace_len):
     insert_position = 1
     if marking.m != ini:
-        if max_rank+1 not in split_lst:
+        if max_rank + 1 not in split_lst:
             insert_position = -1
 
-    if marking.m == ini or insert_position >= 0 or max_rank >= trace_len-1:
-        # print("compute exact", split_lst)
+    if marking.m == ini or insert_position >= 0 or max_rank >= trace_len - 1:
+        print(max_rank)
         m = gp.Model()
         m.Params.LogToConsole = 0
         x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
@@ -96,14 +93,12 @@ def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_mat
         r = get_max_events(marking)
         if r > max_rank:
             max_rank = r
-
         if m.status == 2:
             return m.objVal, np.array(x.X.sum(axis=0)), True, split_lst, max_rank
         else:
             return "HEURISTICINFINITE", [0 for i in range(len(cost_vec))], "Infeasible", split_lst, max_rank
     else:
-        # print("add split", max_rank + 1)
-        split_lst.append(max_rank+1)
+        split_lst.append(max_rank + 1)
         return -1, [0 for i in range(len(cost_vec))], 0, split_lst, max_rank
 
 
