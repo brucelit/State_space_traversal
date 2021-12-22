@@ -202,8 +202,8 @@ class Inc_astar:
                 # get the most promising marking
                 self.visited += 1
                 new_curr = heapq.heappop(self.open_set)
-                if self.visited >= 2:
-                    print("\n", self.visited, new_curr.m, new_curr.trust, self.max_rank, len(self.open_set))
+                # if self.visited >= 2:
+                #     print("\n", self.visited, new_curr.m, new_curr.trust, self.max_rank, len(self.open_set))
                 marking_diff = fin_vec - incidence_matrix.encode_marking(new_curr.m)
                 curr, flag, split_lst = \
                     self.close_or_update_marking(new_curr, ini_state.m, fin, cost_vec, split_lst,
@@ -219,6 +219,7 @@ class Inc_astar:
                 elif flag == "REQUEUED":
                     heapq.heappush(self.open_set, curr)
                 elif flag == "FINALMARKINGFOUND":
+                    print(curr.pre_trans_lst)
                     return self.reconstruct_alignment(curr, len(trace_log))
                 elif flag == "CLOSEDINFEASIBLE":
                     closed[curr.m] = curr
@@ -255,7 +256,7 @@ class Inc_astar:
                 if self.normal_astar_flag:
                     self.open_set = self.cache_set
                     self.cache_set = []
-                print("After checking, open set:", len(self.open_set), "cache set:",len(self.cache_set))
+                # print("After checking, open set:", len(self.open_set), "cache set:", len(self.cache_set))
             else:
                 self.normal_astar_flag = True
                 for i in self.cache_set:
@@ -286,7 +287,7 @@ class Inc_astar:
                                                                                     cost_vec, self.max_rank, len_trace)
                 self.time_h += timeit.default_timer() - start_time
                 if self.max_rank + 1 not in split_lst:
-                    print("compute exact h, the normal astar end with max rank:", self.max_rank)
+                    print("compute exact h, the normal astar end with max rank:", self.max_rank, marking.pre_trans_lst)
                     self.normal_astar_flag = False
                     return marking, "RESTARTNEEDED", split_lst
                 # need to restart
@@ -333,16 +334,16 @@ class Inc_astar:
                 # add possible new path to closed set
                 state = closed[new_marking]
                 if curr.propagation_rank > state.propagation_rank:
-                    print("\ncheck closed", curr.m, curr.propagation_rank, state.m, state.propagation_rank)
+                    # print("\ncheck closed", curr.m, curr.propagation_rank, state.m, state.propagation_rank)
                     pre_trans = deepcopy(curr.pre_trans_lst)
                     for j in pre_trans:
                         j.append(incidence_matrix.transitions[t])
-                    print("before checking",state.p.g, state.p.m, state.t)
+                    # print("before checking",state.p.g, state.p.m, state.t)
                     update_tp, flag = self.update_paths(pre_trans, state)
                     # if found new paths, continue
                     if flag:
                         update_tp = self.derive_or_estimate_heuristic(curr, update_tp, incidence_matrix, cost_vec, t)
-                        print("after checking", update_tp.p.g, update_tp.p.m, update_tp.t)
+                        # print("after checking", update_tp.p.g, update_tp.p.m, update_tp.t)
                         if new_g <= update_tp.g:
                             update_tp.g = new_g
                             update_tp.t = t

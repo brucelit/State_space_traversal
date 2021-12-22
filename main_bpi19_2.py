@@ -6,17 +6,16 @@ from pm4py.objects.petri_net.importer.variants.pnml import import_net
 from pm4py.algo.conformance.alignments.petri_net.variants import state_equation_a_star
 import warnings
 import pandas as pd
-
-import astar_cache_ap
+import astar_cache_pp
 import astar_pm4py
+import astar_reverse
 import astar_tue
-import astar_tue_latest
 from tqdm import tqdm
 
 
 def search():
     # Here to change the log file in dataset: the .xes file
-    event_log = xes_importer.apply('F:\Thesis\data\BPIC19_2.xes')
+    event_log = xes_importer.apply('F:\Thesis\data\BPIC19_2_197.xes')
     # Here to change the model in dataset: the .pnml file
     model_net, model_im, model_fm = import_net('F:\Thesis\data\BPIC19_2_IM.pnml')
     # the colunm name in result csv file
@@ -30,18 +29,16 @@ def search():
                    'cost']
     
     # df = pd.DataFrame(columns=field_names)
-    # df.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_1218.csv', sep=',', index=False)
+    # df.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_reverse_1219.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
-        if case_index != 5:
-            continue
         result2 = {}
         result = {'time_sum': [], 'time_h': [], 'time_diff':[], 'cost': [], 'visited_states': [],
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
         try:
             # loop 5 times and get average
-            for i in range(1):
+            for i in range(5):
                 '''
                 # Choose one of the following align, then save the results in csv file for further analysis
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
@@ -49,13 +46,15 @@ def search():
                 '''
                 # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
                 # print(align)
-                align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-                align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+                # align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+                # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
                 # print(align)
                 # align1 = astar_cache_ap.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
                 # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
                 # print(align)
-
+                align1 = astar_reverse.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+                align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+                print(align)
                 '''
                 # Choice 2: the algorithm from in paper "Improving Alignment Computation
                 # using Model-based Preprocessing" from Eindhoven University
@@ -98,8 +97,7 @@ def search():
             result2['traversed_arcs'] = statistics.mean(result['traversed_arcs'])
             result2['cost'] = statistics.mean(result['cost'])
             result2['restart'] = statistics.mean(result['restart'])
-            #
-            # with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_1218.csv', 'a') as f_object:
+            # with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_reverse_1219.csv', 'a') as f_object:
             #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             #     # Pass the dictionary as an argument to the Writerow()
             #     dictwriter_object.writerow(result2)
@@ -109,14 +107,13 @@ def search():
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
             align = {'alignment': "??", 'cost': "??"}
-            with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_1218.csv', 'a') as f_object:
+            with open('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_reverse_1219.csv', 'a') as f_object:
                 dictwriter_object = DictWriter(f_object, fieldnames=field_names)
                 # Pass the dictionary as an argument to the Writerow()
                 dictwriter_object.writerow(align)
                 # Close the file object
                 f_object.close()
-
-    # df = pd.read_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_1218.csv')
+    # df = pd.read_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_reverse_1219.csv')
     # total = df.sum()
     # df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
     #                                                  "time_h",
@@ -127,7 +124,7 @@ def search():
     #                                                  "restart",
     #                                                  "cost"])
     # df3 = pd.concat([df2, df]).reset_index(drop=True)
-    # df3.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_1218.csv', index=False)
+    # df3.to_csv('F:\Thesis\data\BPIC19_2_astar_tue\BPIC19_2_tue_reverse_1219.csv', index=False)
 
 
 if __name__ == "__main__":

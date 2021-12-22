@@ -82,7 +82,7 @@ def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_mat
             insert_position = -1
 
     if marking.m == ini or insert_position >= 0 or max_rank >= trace_len - 1:
-        print(max_rank)
+        print("max rank",max_rank)
         m = gp.Model()
         m.Params.LogToConsole = 0
         x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
@@ -99,6 +99,7 @@ def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_mat
             return "HEURISTICINFINITE", [0 for i in range(len(cost_vec))], "Infeasible", split_lst, max_rank
     else:
         split_lst.append(max_rank + 1)
+        print("append rank", max_rank)
         return -1, [0 for i in range(len(cost_vec))], 0, split_lst, max_rank
 
 

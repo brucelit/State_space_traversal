@@ -1,4 +1,4 @@
-import heapq
+import minheap
 import sys
 import timeit
 from enum import Enum
@@ -48,7 +48,7 @@ class Inc_astar:
         self.restart = 0
         self.max_rank = -1
         self.time_h = 0
-        self.open_set = []
+        self.open_set = minheap.MinHeap()
 
     def apply(self, trace, petri_net, initial_marking, final_marking, parameters=None):
         """
@@ -188,15 +188,15 @@ class Inc_astar:
 
         # add initial marking to open set
         ini_state = SearchTuple(h, 0, h, ini, None, None, deepcopy(x), True)
-        self.open_set = [ini_state]
         already_visited = {ini: 0}
-        heapq.heapify(self.open_set)
+        self.open_set.add(ini_state)
+        self.open_set.print_mh()
         # while not all states visited
 
         while self.open_set:
             # get the most promising marking
             self.visited += 1
-            new_curr = heapq.heappop(self.open_set)
+            new_curr = self.open_set.poll()
             print("\n", self.visited, new_curr.m, new_curr.trust, self.max_rank, len(self.open_set))
             marking_diff = fin_vec - incidence_matrix.encode_marking(new_curr.m)
             curr, flag, split_lst = \
@@ -210,7 +210,7 @@ class Inc_astar:
                 self.expand_marking(cost_function, curr, already_visited,
                                     incidence_matrix, cost_vec, closed)
             elif flag == "REQUEUED":
-                heapq.heappush(self.open_set, curr)
+                self.open_set.add(self.open_set, curr)
             elif flag == "RESTARTNEEDED":
                 splits = sorted(split_lst)
                 start_time = timeit.default_timer()
@@ -224,8 +224,8 @@ class Inc_astar:
                 # restart by reset open set and closed set
                 closed = set()
                 ini_state = SearchTuple(h, 0, h, ini, None, None, deepcopy(x), True)
-                self.open_set = [ini_state]
-                heapq.heapify(self.open_set)
+                self.open_set.clear_heap()
+                self.open_set.append(ini_state)
                 self.max_rank = -1
                 already_visited = {ini: 0}
 
@@ -300,20 +300,19 @@ class Inc_astar:
                     tp = SearchTuple(0, new_g, -1, new_marking, curr, t, None, True)
                     update_tp = self.derive_or_estimate_heuristic(curr, tp, incidence_matrix, cost_vec, t)
                     already_visited[new_marking] = update_tp
-                    heapq.heappush(self.open_set, update_tp)
+                    self.open_set.add(update_tp)
                 # new marking has shorter path
                 elif new_g < already_visited[new_marking].g:
                     for i in self.open_set:
-                        if i.m == new_marking:
-                            i.g = new_g
-                            i.t = t
-                            i.p = curr
-                            if not i.trust:
-                                i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
-                            self.open_set.remove(i)
-                            heapq.heappush(self.open_set, i)
-                            already_visited[new_marking] = i
-                            break
+                        i.g = new_g
+                        i.t = t
+                        i.p = curr
+                        if not i.trust:
+                            i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
+                        self.open_set.remove_ele(i.m)
+                        self.open_set.add(i)
+                        already_visited[new_marking] = i
+                        break
                 # new marking has longer or equal path, but the heuristic change from invalid to valid
                 else:
                     for i in self.open_set:
@@ -321,8 +320,8 @@ class Inc_astar:
                             if not i.trust:
                                 i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
                                 already_visited[new_marking] = i
-                                self.open_set.remove(i)
-                                heapq.heappush(self.open_set, i)
+                                self.open_set.remove_ele(i.m)
+                                self.open_set.add(i)
                                 break
 
     def derive_or_estimate_heuristic(self, from_marking, to_marking, incidence_matrix, cost_vec, t):

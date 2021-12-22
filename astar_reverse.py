@@ -158,7 +158,7 @@ class Inc_astar:
         decorate_transitions_prepostset(sync_prod)
         decorate_places_preset_trans(sync_prod)
         trace_lst.reverse()
-
+        print("trace list", trace_lst)
         incidence_matrix = construct(sync_prod)
         self.trace_len = len(trace_lst)
         trace_sync = [[] for i in range(0, len(trace_lst))]
@@ -247,6 +247,7 @@ class Inc_astar:
             # compute the exact heuristics
             split_lst = sorted(split_lst)
             start_time = timeit.default_timer()
+            print(len(self.open_set))
             h, x, trustable, split_lst, self.max_rank = \
                 get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_matrix,
                                         cost_vec, self.max_rank, len_trace)
@@ -298,8 +299,6 @@ class Inc_astar:
             # new marking is fresh, compute the f score of this path and add it to open set
             if new_marking not in closed:
                 if new_marking not in already_visited:
-                    # pre_trans = deepcopy(curr.pre_trans_lst)
-                    # pre_trans.append(incidence_matrix.transitions[t])
                     tp = SearchTuple(0, new_g, -1, new_marking, curr, t, None, True)
                     update_tp = self.derive_or_estimate_heuristic(curr, tp, incidence_matrix, cost_vec, t)
                     already_visited[new_marking] = update_tp
@@ -314,6 +313,7 @@ class Inc_astar:
                             if not i.trust:
                                 i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
                             self.open_set.remove(i)
+                            heapq.heapify(self.open_set)
                             heapq.heappush(self.open_set, i)
                             already_visited[new_marking] = i
                             break
@@ -325,6 +325,7 @@ class Inc_astar:
                                 i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
                                 already_visited[new_marking] = i
                                 self.open_set.remove(i)
+                                heapq.heapify(self.open_set)
                                 heapq.heappush(self.open_set, i)
                                 break
 
@@ -385,15 +386,6 @@ class Inc_astar:
         else:
             return 1 + self.get_path_length(marking.p)
 
-    # def check_heuristic(state, ini_vec):
-    #     solution_vec = deepcopy(ini_vec)
-    #     for i in state.pre_trans_lst:
-    #         solution_vec[i] -= 1
-    #     for j in solution_vec:
-    #         if j < 0:
-    #             return False
-    #     return True
-
     def reconstruct_alignment(self, state, trace_length, ret_tuple_as_trans_desc=False):
         alignment = list()
         if state.p is not None and state.t is not None:
@@ -418,12 +410,6 @@ class Inc_astar:
             'trace_length': trace_length,
             'alignment': alignment,
         }
-
-    def trust_solution(self, x):
-        for v in x:
-            if v < 0:
-                return False
-        return True
 
     def vectorize_initial_final_cost(self, incidence_matrix, ini, fin, cost_function):
         ini_vec = incidence_matrix.encode_marking(ini)

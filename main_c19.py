@@ -8,11 +8,9 @@ from pm4py.objects.petri_net.importer.variants.pnml import import_net
 from pm4py.algo.conformance.alignments.petri_net.variants import state_equation_a_star
 import warnings
 import pandas as pd
-import astar_bid
-import astar_cache_ap
+import astar_cache_pp
 import astar_reverse
 import astar_tue
-import astar_tue_cache
 
 from tqdm import tqdm
 
@@ -34,7 +32,7 @@ def search():
                    ]
     #
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\c19_astar_tue\c19_astar_tue_reverse_1219.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\c19_astar_tue\c19_astar_cache_1220.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
 
@@ -51,12 +49,13 @@ def search():
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             # print(align)
 
-            # align1 = astar_cache1.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            # print(align)
-            align1 = astar_reverse.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+            align1 = astar_cache_pp.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             print(align)
+
+            # align1 = astar_reverse.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+            # print(align)
             # align1 = astar_cache_ap.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             # print(align)
@@ -106,13 +105,13 @@ def search():
         result2['cost'] = statistics.mean(result['cost'])
         result2['restart'] = statistics.mean(result['restart'])
 
-        with open('F:\Thesis\data\c19_astar_tue\c19_astar_tue_reverse_1219.csv', 'a') as f_object:
+        with open('F:\Thesis\data\c19_astar_tue\c19_astar_cache_1220.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(result2)
             # Close the file object
             f_object.close()
-    df = pd.read_csv('F:\Thesis\data\c19_astar_tue\c19_astar_tue_reverse_1219.csv')
+    df = pd.read_csv('F:\Thesis\data\c19_astar_tue\c19_astar_cache_1220.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -123,7 +122,7 @@ def search():
                                                      "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\c19_astar_tue\c19_astar_tue_reverse_1219.csv', index=False)
+    df3.to_csv('F:\Thesis\data\c19_astar_tue\c19_astar_cache_1220.csv', index=False)
 
 if __name__ == "__main__":
     search()
