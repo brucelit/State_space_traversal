@@ -12,10 +12,8 @@ from pm4py.objects.petri.utils import construct_trace_net_cost_aware, decorate_p
 from pm4py.util import exec_utils
 from pm4py.util.constants import PARAMETER_CONSTANT_ACTIVITY_KEY
 from pm4py.util.xes_constants import DEFAULT_NAME_KEY
-
-from construction import construct_cost_aware_backward
 from heuristic import get_ini_heuristic, get_exact_heuristic_new, get_exact_heuristic
-from pm4py.objects.petri_net.exporter.variants.pnml import export_net
+
 
 class Parameters(Enum):
     PARAM_TRACE_COST_FUNCTION = 'trace_cost_function'
@@ -54,7 +52,6 @@ class Inc_astar:
         self.time_heap = 0
         self.order = 0
         self.split_lst = []
-        self.trace_len = 0
 
     def apply(self, trace, petri_net, initial_marking, final_marking, parameters=None):
         """
@@ -133,19 +130,16 @@ class Inc_astar:
                 if t_trace.label == t_model.label:
                     revised_sync[(t_trace, t_model)] = sync_cost_function[t_model]
 
-        sync_prod, sync_initial_marking, sync_final_marking, cost_function = construct_cost_aware_backward(
+        sync_prod, sync_initial_marking, sync_final_marking, cost_function = construct_cost_aware(
             trace_net, trace_im, trace_fm, petri_net, initial_marking, final_marking, utils.SKIP,
             trace_net_costs, model_cost_function, revised_sync)
-
         max_align_time_trace = exec_utils.get_param_value(Parameters.PARAM_MAX_ALIGN_TIME_TRACE, parameters,
                                                           sys.maxsize)
 
         decorate_transitions_prepostset(trace_net)
         decorate_places_preset_trans(trace_net)
-
         trans_empty_preset = set(t for t in trace_net.transitions if len(t.in_arcs) == 0)
         current_marking = trace_im
-
         trace_lst = []
         while current_marking != trace_fm:
             enabled_trans = copy(trans_empty_preset)
@@ -157,16 +151,13 @@ class Inc_astar:
             for t in enabled_trans:
                 new_marking = utils.add_markings(current_marking, t.add_marking)
             current_marking = new_marking
-        self.trace_len = len(trace_lst)
         return self.apply_sync_prod(sync_prod, sync_initial_marking, sync_final_marking, cost_function, trace_lst)
 
     def apply_sync_prod(self, sync_prod, initial_marking, final_marking, cost_function, trace_lst):
         decorate_transitions_prepostset(sync_prod)
         decorate_places_preset_trans(sync_prod)
-        trace_lst.reverse()
-        print("\nthe trace list", trace_lst)
+
         incidence_matrix = construct(sync_prod)
-        self.trace_len = len(trace_lst)
         trace_sync = [[] for i in range(0, len(trace_lst))]
         trace_log = [None for i in range(0, len(trace_lst))]
         t_index = incidence_matrix.transitions
@@ -190,6 +181,7 @@ class Inc_astar:
         inc_matrix = incidence_matrix.a_matrix
         cons_matrix = incidence_matrix.b_matrix
         start_time = timeit.default_timer()
+        # print("type", type(fin_vec - ini_vec), type(inc_matrix), type(cost_vec))
         h, x = get_exact_heuristic(fin_vec - ini_vec, inc_matrix, cost_vec)
         self.time_h += timeit.default_timer() - start_time
         self.lp_solved += 1
@@ -207,12 +199,14 @@ class Inc_astar:
             start_time = timeit.default_timer()
             new_curr = self.open_set.heap_pop()
             self.time_heap += timeit.default_timer() - start_time
-            # print("\n", self.visited, new_curr.m, new_curr.trust, new_curr.f, new_curr.g, new_curr.h)
+            # print("\n", self.visited, new_curr.m, new_curr.trust)
             marking_diff = fin_vec - incidence_matrix.encode_marking(new_curr.m)
             curr, flag = \
                 self.close_or_update_marking(new_curr, ini_state.m, fin, cost_vec,
                                              marking_diff, inc_matrix, len(trace_log))
             if flag == "CLOSEDSUCCESSFUL":
+                if self.get_max_events(curr) > self.max_rank:
+                    self.max_rank = self.get_max_events(curr)
                 closed.add(curr.m)
                 # only after adding marking m to closed set, can we expand from m
                 self.expand_marking(cost_function, curr, already_visited,
@@ -234,7 +228,7 @@ class Inc_astar:
                 # restart by reset open set and closed set
                 closed = set()
                 self.order = 0
-                ini_state = Marking(h, 0, h, ini, None, None, deepcopy(x), True, self.order)
+                ini_state = Marking(h, 0, h, ini, None, None, [deepcopy(x)], True, [[]], self.order)
                 start_time = timeit.default_timer()
                 self.open_set.heap_clear()
                 self.open_set.heap_insert(ini_state)
@@ -293,8 +287,9 @@ class Inc_astar:
                 if t.sub_marking <= curr.m:
                     enabled_trans.add(t)
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans]
-        enabled_trans = sorted(sorted(trans_to_visit_with_cost, key=lambda k: k[0].label[0], reverse=True), key=lambda k: k[1])
         # firing subsequent transitions to get new marking
+        enabled_trans = sorted(sorted(trans_to_visit_with_cost, key=lambda k: k[0].label[0], reverse=True), key=lambda k: k[1])
+        # print(enabled_trans)
         for t, cost in enabled_trans:
             # compute the new g score of the subsequent marking reached if t would be fired
             new_g = curr.g + cost
@@ -304,7 +299,7 @@ class Inc_astar:
             if subseq_marking not in closed:
                 if not self.open_set.heap_find(subseq_marking):
                     self.order += 1
-                    tp = Marking(new_g, new_g, -1, subseq_marking, curr, t, None, True, self.order)
+                    tp = Marking(0, new_g, 10000, subseq_marking, curr, t, None, False, self.order)
                     update_tp = self.derive_or_estimate_heuristic(curr, tp, incidence_matrix, cost_vec, t)
                     start_time = timeit.default_timer()
                     self.open_set.heap_insert(update_tp)
@@ -335,22 +330,25 @@ class Inc_astar:
                         self.open_set.heap_insert(i)
                         self.time_heap += timeit.default_timer() - start_time
 
+
     def derive_or_estimate_heuristic(self, from_marking, to_marking, incidence_matrix, cost_vec, t):
         # if from marking has exact heuristic, we can derive from it
-        if from_marking.trust and from_marking.x[incidence_matrix.transitions[t]] >= 1 \
-                and from_marking.h != "HEURISTICINFINITE":
+        if from_marking.trust and from_marking.h != "HEURISTICINFINITE":
+            #  f, g, h, m, p, t, x, trust
             x_prime = deepcopy(from_marking.x)
-            x_prime[incidence_matrix.transitions[t]] -= 1
-            to_marking.x = x_prime
-            to_marking.h = from_marking.h - cost_vec[incidence_matrix.transitions[t]]
+            for each_x in x_prime:
+                if each_x[incidence_matrix.transitions[t]] >= 1:
+                    each_x[incidence_matrix.transitions[t]] -= 1
+                    to_marking.x.append(each_x)
+                    to_marking.trust = True
+                    to_marking.h = min(from_marking.h - cost_vec[incidence_matrix.transitions[t]], to_marking.h)
             to_marking.f = to_marking.g + to_marking.h
-            to_marking.trust = True
             to_marking.t = t
             to_marking.p = from_marking
-            if t.label[0] != ">>":
-                if self.get_max_events(to_marking) > self.max_rank:
-                    print("the max rank", self.max_rank, self.get_max_events(to_marking), t.label, t.name)
-                    self.max_rank = self.get_max_events(from_marking)
+            # if t.label[0] != ">>":
+            #     if self.get_max_events(to_marking) + 1 > self.max_rank:
+            #         self.max_rank = self.get_max_events(from_marking) + 1
+
         # if heuristic of from marking is infinite, then we return
         elif from_marking.h == "HEURISTICINFINITE":
             to_marking.h = "HEURISTICINFINITE"
@@ -366,14 +364,14 @@ class Inc_astar:
                 to_marking.trust = True
                 to_marking.t = t
                 to_marking.p = from_marking
-                if t.label[0] != ">>":
-                    if self.get_max_events(to_marking) > self.max_rank:
-                        print("the max rank", self.max_rank, self.get_max_events(to_marking), t.label, t.name)
-                        self.max_rank = self.get_max_events(from_marking)
+                # if t.label[0] != ">>":
+                #     if self.get_max_events(to_marking) + 1 > self.max_rank:
+                #         self.max_rank = self.get_max_events(from_marking) + 1
             else:
                 h = from_marking.h - cost_vec[incidence_matrix.transitions[t]]
                 if h < 0:
                     h = 0
+                    to_marking.f = to_marking.g
                 if h > to_marking.h:
                     to_marking.h = h
                     to_marking.f = h + to_marking.g
@@ -381,11 +379,10 @@ class Inc_astar:
         return to_marking
 
     def get_max_events(self, marking):
-        if marking.p is None:
+        if marking.t is None:
             return -1
         if marking.t.label[0] != ">>":
-            # return int(re.search("(\d+)(?!.*\d)", marking.t.name[0]).group())
-            return self.trace_len - int(re.search("(\d+)(?!.*\d)", marking.t.name[0]).group())
+            return int(re.search("(\d+)(?!.*\d)", marking.t.name[0]).group())
         return self.get_max_events(marking.p)
 
     def get_path_length(self, marking):
@@ -420,14 +417,19 @@ class Inc_astar:
             'alignment': alignment,
         }
 
+    def trust_solution(self, x):
+        for v in x:
+            if v < 0:
+                return False
+        return True
+
     def vectorize_initial_final_cost(self, incidence_matrix, ini, fin, cost_function):
-        print(ini)
         ini_vec = incidence_matrix.encode_marking(ini)
-        fini_vec = incidence_matrix.encode_marking(fin)
+        fin_vec = incidence_matrix.encode_marking(fin)
         cost_vec = [0] * len(cost_function)
         for t in cost_function.keys():
             cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
-        return np.array(ini_vec), np.array(fini_vec), np.array(cost_vec)
+        return np.array(ini_vec), np.array(fin_vec), np.array(cost_vec)
 
 class IncidenceMatrix(object):
 
@@ -492,7 +494,7 @@ def construct(net):
 
 
 class Marking:
-    def __init__(self, f, g, h, m, p, t, x, trust, order):
+    def __init__(self, f, g, h, m, p, t, x, trust, pre_trans_lst, order):
         self.f = f
         self.g = g
         self.h = h
@@ -502,6 +504,7 @@ class Marking:
         self.x = x
         self.trust = trust
         self.order = order
+        self.pre_trans_lst = pre_trans_lst
 
     def __lt__(self, other):
         if self.f != other.f:
@@ -511,7 +514,7 @@ class Marking:
         max_event1 = self.get_max_events(self)
         max_event2 = self.get_max_events(other)
         if max_event1 != max_event2:
-            return max_event1 < max_event2
+            return max_event1 > max_event2
         if self.g > other.g:
             return True
         elif self.g < other.g:
@@ -520,6 +523,7 @@ class Marking:
         path2 = self.get_path_length(other)
         if path1 != path2:
             return path1 > path2
+        # print("at this stage")
         return self.order < other.order
 
     def get_max_events(self, marking):

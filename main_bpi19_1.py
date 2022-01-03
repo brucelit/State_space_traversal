@@ -9,8 +9,8 @@ import pandas as pd
 
 import astar_pm4py
 import astar_tue
-import new_tue
-import astar_tue_latest
+# import new_tue
+# import astar_tue_latest
 
 
 def search():
@@ -28,8 +28,8 @@ def search():
                    # "restart",
                    'cost']
     
-    df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv', sep=',', index=False)
+    # df = pd.DataFrame(columns=field_names)
+    # df.to_csv('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index, case in enumerate(event_log):
@@ -45,9 +45,9 @@ def search():
                 # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
                 # and datastructures" from Eindhoven University
                 '''
-                # align = astar_tue.apply(case, model_net, model_im, model_fm)
-                # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
-                # print(align)
+                align = astar_tue.apply(case, model_net, model_im, model_fm)
+                align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
+                print(align)
 
                 # print("cost", align['cost'], "\n")
                 # align = new_tue.apply(case, model_net, model_im, model_fm)
@@ -71,7 +71,7 @@ def search():
                 # align = astar_bid.apply(case, model_net, model_im, model_fm)
 
                 # Choice 8: the algorithm from pm4py
-                align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
+                # align = state_equation_a_star.apply(case, model_net, model_im, model_fm)
 
                 # align = astar_pm4py.apply(case, model_net, model_im, model_fm)
                 # print(align)
@@ -94,12 +94,12 @@ def search():
             result2['cost'] = statistics.mean(result['cost'])
             # result2['restart'] = statistics.mean(result['restart'])
 
-            with open('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv', 'a') as f_object:
-                dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-                # Pass the dictionary as an argument to the Writerow()
-                dictwriter_object.writerow(result2)
-                # Close the file object
-                f_object.close()
+            # with open('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv', 'a') as f_object:
+            #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+            #     # Pass the dictionary as an argument to the Writerow()
+            #     dictwriter_object.writerow(result2)
+            #     # Close the file object
+            #     f_object.close()
 
         except func_timeout.exceptions.FunctionTimedOut:
             print("timeout", id)
@@ -111,18 +111,18 @@ def search():
                 # Close the file object
                 f_object.close()
 
-    df = pd.read_csv('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv')
-    total = df.sum()
-    df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
-                                                     "time_h",
-                                                     "time_diff",
-                                                     "lp_solved",
-                                                     "visited_states",
-                                                     "traversed_arcs",
-                                                     # "restart",
-                                                     "cost"])
-    df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv', index=False)
+    # df = pd.read_csv('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv')
+    # total = df.sum()
+    # df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
+    #                                                  "time_h",
+    #                                                  "time_diff",
+    #                                                  "lp_solved",
+    #                                                  "visited_states",
+    #                                                  "traversed_arcs",
+    #                                                  # "restart",
+    #                                                  "cost"])
+    # df3 = pd.concat([df2, df]).reset_index(drop=True)
+    # df3.to_csv('F:\Thesis\data\BPIC19_1_astar_tue\BPIC19_1_astar_pm4py.csv', index=False)
 
 
 if __name__ == "__main__":

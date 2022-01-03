@@ -1,5 +1,5 @@
 import re
-
+import timeit
 import numpy as np
 import gurobipy as gp
 from gurobipy import GRB
@@ -11,6 +11,8 @@ def get_ini_heuristic(ini_vec, fin_vec, cost, split_lst,
                       t_index, p_index,
                       trace_lst_sync,
                       trace_lst_log):
+    print(split_lst)
+    start_time = timeit.default_timer()
     # Define problem
     m = gp.Model()
     m.Params.LogToConsole = 0
@@ -64,6 +66,7 @@ def get_ini_heuristic(ini_vec, fin_vec, cost, split_lst,
 
 # compute the exact heuristic of marking m
 def get_exact_heuristic(marking_diff, incidence_matrix, cost_vec):
+    start_time = timeit.default_timer()
     m = gp.Model()
     m.Params.LogToConsole = 0
     x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
@@ -77,12 +80,11 @@ def get_exact_heuristic(marking_diff, incidence_matrix, cost_vec):
 # compute the exact heuristic of marking m
 def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_matrix, cost_vec, max_rank, trace_len):
     insert_position = 1
+    rank = max_rank + 1
     if marking.m != ini:
-        if max_rank + 1 not in split_lst:
+        if rank not in split_lst:
             insert_position = -1
-
-    if marking.m == ini or insert_position >= 0 or max_rank >= trace_len - 1:
-        print("max rank",max_rank)
+    if marking.m == ini or insert_position > 0 or rank > trace_len-1:
         m = gp.Model()
         m.Params.LogToConsole = 0
         x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
@@ -98,21 +100,8 @@ def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_mat
         else:
             return "HEURISTICINFINITE", [0 for i in range(len(cost_vec))], "Infeasible", split_lst, max_rank
     else:
-        split_lst.append(max_rank + 1)
-        print("append rank", max_rank)
+        split_lst.append(rank)
         return -1, [0 for i in range(len(cost_vec))], 0, split_lst, max_rank
-
-
-# computer estimated heuristic from heuristics of previous marking
-def compute_estimate_heuristic(h_score, solution_x, t_index, cost_vec):
-    result_aux = [0 for x in cost_vec]
-    not_trust = 1
-    if solution_x[t_index] >= 1:
-        not_trust = 0
-    result_aux[t_index] = 1
-    new_solution_x = np.array(solution_x) - np.array(result_aux)
-    new_h_score = max(0, h_score - cost_vec[t_index])
-    return new_h_score, new_solution_x, not_trust
 
 
 def get_max_events(marking):

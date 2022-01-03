@@ -1,142 +1,160 @@
-from copy import deepcopy
+def _has_parent(idx):
+    if idx == 0:
+        return False
+    else:
+        return True
+
+
+import timeit
 
 
 class MinHeap:
     def __init__(self):
-        self.item_lst = []
-        self.item_index = {}
+        self.lst = []
+        self.idx = {}
 
-    def peek(self):
-        if len(self.item_lst) == 0:
-            return False
+    def swap(self, idx1, idx2):
+        # temp = self.lst[idx1]
+        # self.lst[idx1] = self.lst[idx2]
+        # self.idx[self.lst[idx1].m] = idx1
+        # self.lst[idx2] = temp
+        # self.idx[self.lst[idx2].m] = idx2
+        # swap two elements for the index map and list position
+        self.lst[idx1], self.lst[idx2] = self.lst[idx2], self.lst[idx1]
+        self.idx[self.lst[idx1].m], self.idx[self.lst[idx2].m] = self.idx[self.lst[idx2].m],  self.idx[self.lst[idx1].m]
+
+    def heap_insert(self, marking):
+        self.lst.append(marking)
+        self.idx[marking.m] = len(self.lst)-1
+        self._heap_heapify_up()
+
+    def heap_pop(self):
+        # print(len(self.lst), self.lst[0])
+        marking_to_pop = self.lst[0]
+        del self.idx[marking_to_pop.m]
+        # update list and index
+        self.lst[0] = self.lst[-1]
+        self.idx[self.lst[0].m] = 0
+        # remove the last element
+        self.lst.pop()
+        self._heap_heapify_down(0)
+        return marking_to_pop
+
+    def heap_find(self, m):
+        return True if m in self.idx else False
+
+    def heap_get(self, m):
+        return self.lst[self.idx[m]]
+
+    def heap_remove(self,m):
+        idx_to_remove = self.idx[m]
+        marking_to_pop = self.lst[self.idx[m]]
+        if len(self.lst)-1 == 1:
+            self.heap_clear()
         else:
-            return self.item_lst[0]
+            del self.idx[marking_to_pop.m]
+            # update list and index
+            self.idx[self.lst[-1].m] = idx_to_remove
+            self.lst[idx_to_remove] = self.lst[-1]
+            # remove the last element
+            self.lst.pop()
+            self._heap_heapify_down(idx_to_remove)
 
-    def swap(self, index1, index2):
-        temp = deepcopy(self.item_lst[index1])
-        self.item_lst[index1] = deepcopy(self.item_lst[index2])
-        self.item_index[self.item_lst[index1].m] = index1
-        self.item_lst[index2] = temp
-        self.item_index[self.item_lst[index2].m] = index2
+    def heap_clear(self):
+        self.lst.clear()
+        self.idx.clear()
 
-    # extract the first element from heap
-    def poll(self):
-        # get the least element and remove the index map
-        min_item_lst = self.item_lst[0]
-        del self.item_index[min_item_lst.m]
-        # put the last element at index 0, update index map
-        self.item_lst[0] = deepcopy(self.item_lst[len(self.item_lst) - 1])
-        self.item_lst.remove(self.item_lst[len(self.item_lst) - 1])
-        self.item_index[self.item_lst[0].m] = 0
-        self.heapifyDown(0)
-        return min_item_lst
-
-    def remove_ele(self, marking):
-        # get the index of marking to remove
-        idx_to_remove = self.item_index[marking]
-        del self.item_index[self.item_lst[idx_to_remove].m]
-        self.item_lst.remove(self.item_lst[len(self.item_lst) - 1])
-
-        # move the last marking to this index
-        self.item_lst[idx_to_remove] = self.item_lst[len(self.item_lst) - 1]
-        # remove the index of this marking
-        self.item_index[self.item_lst[idx_to_remove].m] = idx_to_remove
-        self.heapifyDown(idx_to_remove)
-
-    def add(self, item):
-        self.item_index[item.m] = len(self.item_lst)
-        self.item_lst.append(item)
-        self.heapifyUp()
-
-    def hasParent(self, index):
-        if index == 0:
-            return False
-        else:
-            return True
-
-    def getParentIndex(self, index):
-        if index % 2 == 1:
-            return int((index - 1) / 2)
-        else:
-            return int((index - 2) / 2)
-
-    def heapifyUp(self):
-        index = len(self.item_lst) - 1
-        while (self.hasParent(index) and self.item_lst[self.getParentIndex(index)] > self.item_lst[index]):
-            self.swap(self.getParentIndex(index), index)
-            index = self.getParentIndex(index)
-
-    def heapifyDown(self, idx):
-        index = idx
-        while (self.hasLeftChild(index)):
-            smallerChildIndex = self.getLeftChildIndex(index)
-            if self.hasRightChild(index) and self.rightChild(index) < self.leftChild(index):
-                smallerChildIndex = self.getRightChildIndex(index)
-            if self.item_lst[index] < self.item_lst[smallerChildIndex]:
+    def _heap_heapify_down(self, idx):
+        while self._has_left_child(idx):
+            smaller_index = idx*2+1
+            if idx*2+2 < len(self.lst) and self.lst[idx*2+2] < self.lst[idx*2+1]:
+                smaller_index = idx*2+2
+            if self.lst[idx] < self.lst[smaller_index]:
                 break
             else:
-                self.swap(index, smallerChildIndex)
-            index = smallerChildIndex
+                self.swap(smaller_index, idx)
+            idx = smaller_index
 
-    def rightChild(self, index):
-        return self.item_lst[index * 2 + 2]
+    def _heap_heapify_up(self):
+        index = len(self.lst) - 1
+        while index != 0 and self.lst[index] < self.lst[int((index - 1) // 2)]:
+            # self.swap(int((index - 1) // 2), index)
+            parent_index = int((index - 1) // 2)
+            self.lst[index], self.lst[parent_index] = self.lst[parent_index], self.lst[index]
+            self.idx[self.lst[index].m], self.idx[self.lst[parent_index].m] = \
+                self.idx[self.lst[parent_index].m], self.idx[self.lst[index].m]
+            index = parent_index
 
-    def leftChild(self, index):
-        return self.item_lst[index * 2 + 1]
-
-    def getLeftChildIndex(self, index):
-        return index * 2 + 1
-
-    def getRightChildIndex(self, index):
-        return index * 2 + 2
-
-    def hasLeftChild(self, index):
-        if index * 2 + 1 >= len(self.item_lst):
-            return False
-        else:
+    def _has_left_child(self, idx):
+        if idx*2+1 < len(self.lst):
             return True
-
-    def hasRightChild(self, index):
-        if index * 2 + 2 >= len(self.item_lst):
+        else:
             return False
-        else:
+
+    def _get_parent(self, index):
+        return int((index - 1) // 2)
+
+    def _has_right_child(self, idx):
+        if idx*2+2 < len(self.lst):
             return True
-
-    def print_mh(self):
-        for i in self.item_lst:
-            print(i.m, i.f, i.g)
-        print(self.item_index)
-
-    def clear_heap(self):
-        self.item_lst = []
-        self.item_index = {}
-
-
-class SearchTuple:
-    def __init__(self, m, f, g):
-        self.m = m
-        self.f = f
-        self.g = g
-
-    def __lt__(self, other):
-        if self.f != other.f:
-            return self.f < other.f
         else:
-            return self.g < other.g
+            return False
 
+    def print_idx(self):
+        print(self.idx)
 
+    def print_lst(self):
+        for i in self.lst:
+            print(i.m)
 
-if __name__ == '__main__':
-    mh = MinHeap()
-    mh.add(SearchTuple("a", 5, 6))
-    mh.add(SearchTuple("b", 5, 8))
-    mh.add(SearchTuple("c", 5, 5))
-    mh.add(SearchTuple("d", 3, 6))
-    mh.add(SearchTuple("e", 6, 6))
-    mh.add(SearchTuple("f", 2, 6))
-    mh.add(SearchTuple("g", 2, 4))
-    mh.add(SearchTuple("h", 2, 6))
-    mh.add(SearchTuple("i", 2, 7))
-    mh.add(SearchTuple("j", 2, 5))
-    mh.add(SearchTuple("k", 2, 4))
-    mh.add(SearchTuple("l", 2, 2))
+    def get_len(self):
+        return len(self.lst)
+#
+# class Marking:
+#     def __init__(self, m, f, g):
+#         self.m = m
+#         self.f = f
+#         self.g = g
+#
+#     def __lt__(self, other):
+#         if self.f < other.f:
+#             return True
+#         if self.g < other.g:
+#             return True
+
+#
+# if __name__ == '__main__':
+#     m1 = Marking("a", 4, 4)
+#     m2 = Marking("b", 3, 3)
+#     m3 = Marking("c", 2, 2)
+#     m4 = Marking("d", 5, 5)
+#     m5 = Marking("e", 1, 1)
+#     m6 = Marking("f", 6, 6)
+#
+#     heap1 = MinHeap()
+#     heap1.heap_insert(m1)
+#     heap1.heap_insert(m2)
+#     heap1.heap_insert(m3)
+#     heap1.heap_insert(m4)
+#     heap1.heap_insert(m5)
+#     heap1.heap_insert(m6)
+#
+#     print("after insertion")
+#     heap1.print_idx()
+#     heap1.print_lst()
+#     heap1.heap_pop()
+#
+#     print("remove the first")
+#     heap1.print_idx()
+#     heap1.print_lst()
+#     i = heap1.heap_get("a")
+#     heap1.heap_remove("a")
+#     i.f = 2
+#     i.g = 2
+#     heap1.heap_insert(i)
+#
+#     m7 = Marking("g", 7, 7)
+#     heap1.heap_insert(m7)
+#     heap1.print_idx()
+#     heap1.print_lst()
+#     print(heap1.heap_find("f"))

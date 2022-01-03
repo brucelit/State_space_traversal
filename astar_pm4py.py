@@ -34,7 +34,8 @@ import timeit
 import time
 from copy import copy
 from enum import Enum
-
+import re
+import heuristic
 import numpy as np
 
 from pm4py.objects.log import obj as log_implementation
@@ -412,9 +413,10 @@ def apply_sync_prod(sync_prod, initial_marking, final_marking, cost_function, sk
     time_h = 0
     res = __search(sync_prod, initial_marking, final_marking, cost_function, skip, time_h,
                     ret_tuple_as_trans_desc=ret_tuple_as_trans_desc, max_align_time_trace=max_align_time_trace)
-    print(res)
+    # print(res)
     res['time_sum'] = timeit.default_timer() - start_time
     res['time_diff'] = res['time_sum'] - res['time_h']
+    res['restart'] = 0
     return res
 
 
@@ -432,24 +434,25 @@ def __search(sync_net, ini, fin, cost_function, skip, time_h, ret_tuple_as_trans
     g_matrix = -np.eye(len(sync_net.transitions))
     h_cvx = np.matrix(np.zeros(len(sync_net.transitions))).transpose()
     cost_vec = [x * 1.0 for x in cost_vec]
-
-    use_cvxopt = False
-    if lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN or lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP:
-        use_cvxopt = True
-
-    if use_cvxopt:
-        # not available in the latest version of PM4Py
-        from cvxopt import matrix
-
-        a_matrix = matrix(a_matrix)
-        g_matrix = matrix(g_matrix)
-        h_cvx = matrix(h_cvx)
-        cost_vec = matrix(cost_vec)
+    #
+    # use_cvxopt = False
+    # if lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN or lp_solver.DEFAULT_LP_SOLVER_VARIANT == lp_solver.CVXOPT_SOLVER_CUSTOM_ALIGN_ILP:
+    #     use_cvxopt = True
+    #
+    # if use_cvxopt:
+    #     # not available in the latest version of PM4Py
+    #     from cvxopt import matrix
+    #
+    #     a_matrix = matrix(a_matrix)
+    #     g_matrix = matrix(g_matrix)
+    #     h_cvx = matrix(h_cvx)
+    #     cost_vec = matrix(cost_vec)
     start_time = timeit.default_timer()
-    h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
-                                                       ini,
-                                                       fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
-                                                       use_cvxopt=use_cvxopt)
+    # h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec, incidence_matrix,
+    #                                                    ini,
+    #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+    #                                                    use_cvxopt=use_cvxopt)
+    h, x = heuristic.get_exact_heuristic(np.array(np.array(fin_vec) - np.array(ini_vec)), np.array(incidence_matrix.a_matrix), np.array(cost_vec))
     time_h += timeit.default_timer() - start_time
     ini_state = utils.SearchTuple(0 + h, 0, h, ini, None, None, x, True)
     open_set = [ini_state]
@@ -478,10 +481,11 @@ def __search(sync_net, ini, fin, cost_function, skip, time_h, ret_tuple_as_trans
                 current_marking = curr.m
                 continue
             start_time = timeit.default_timer()
-            h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
-                                                               incidence_matrix, curr.m,
-                                                               fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
-                                                               use_cvxopt=use_cvxopt)
+            # h, x = utils.__compute_exact_heuristic_new_version(sync_net, a_matrix, h_cvx, g_matrix, cost_vec,
+            #                                                    incidence_matrix, curr.m,
+            #                                                    fin_vec, lp_solver.DEFAULT_LP_SOLVER_VARIANT,
+            #                                                    use_cvxopt=use_cvxopt)
+            h, x = heuristic.get_exact_heuristic(np.array(fin_vec) - np.array(incidence_matrix.encode_marking(curr.m)), np.array(incidence_matrix.a_matrix), np.array(cost_vec))
             time_h += timeit.default_timer() - start_time
             lp_solved += 1
 
@@ -508,12 +512,11 @@ def __search(sync_net, ini, fin, cost_function, skip, time_h, ret_tuple_as_trans
         # (underestimation of the remaining cost) is 0. Low-hanging fruits
         if curr.h < 0.01:
             if current_marking == fin:
-                return utils.__reconstruct_alignment(curr, visited, queued, traversed, lp_solved, time_h,
-                                                     ret_tuple_as_trans_desc=ret_tuple_as_trans_desc)
+                return reconstruct_alignment(curr, visited, queued, traversed, lp_solved, time_h)
 
         closed.add(current_marking)
-        print(len(closed))
-
+        # if curr.t is not None:
+        #     print("closed trans", curr.t)
         visited += 1
 
         enabled_trans = copy(trans_empty_preset)
@@ -524,6 +527,7 @@ def __search(sync_net, ini, fin, cost_function, skip, time_h, ret_tuple_as_trans
 
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (
                 t is not None and utils.__is_log_move(t, skip) and utils.__is_model_move(t, skip))]
+        # print("\ntransition lst:", trans_to_visit_with_cost)
 
         for t, cost in trans_to_visit_with_cost:
             traversed += 1
@@ -538,4 +542,33 @@ def __search(sync_net, ini, fin, cost_function, skip, time_h, ret_tuple_as_trans
             new_f = g + h
 
             tp = utils.SearchTuple(new_f, g, h, new_marking, curr, t, x, trustable)
+            # print("add to open:", tp.m, tp.t, tp.f, tp.g)
+
             heapq.heappush(open_set, tp)
+
+
+def reconstruct_alignment(state, visited, queued, traversed, lp_solved, time_h, ret_tuple_as_trans_desc=False):
+    alignment = list()
+    if state.p is not None and state.t is not None:
+        parent = state.p
+        if ret_tuple_as_trans_desc:
+            alignment = [(state.t.name, state.t.label)]
+            while parent.p is not None:
+                alignment = [(parent.t.name, parent.t.label)] + alignment
+                parent = parent.p
+        else:
+            alignment = [state.t.label]
+            while parent.p is not None:
+                alignment = [parent.t.label] + alignment
+                parent = parent.p
+    return {
+        'cost': state.g,
+        'lp_solved': lp_solved,
+        'restart': 0,
+        "time_h": time_h,
+        "time_heap":0,
+        'visited_states': visited,
+        'traversed_arcs': traversed,
+        # 'trace_length': trace_length,
+        'alignment': alignment,
+    }
