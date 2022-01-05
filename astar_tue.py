@@ -50,7 +50,7 @@ class Inc_astar:
         self.restart = 0
         self.max_rank = -1
         self.time_h = 0
-        self.open_set = MinHeap()
+        self.open_set = minheap.MinHeap()
         self.time_heap = 0
         self.heap_insert = 0
         self.heap_retrieval = 0
@@ -60,7 +60,6 @@ class Inc_astar:
         self.order = 0
         self.split_lst = []
         self.heap_count = 0
-        self.heap_longtime = 0
 
     def apply(self, trace, petri_net, initial_marking, final_marking, parameters=None):
         """
@@ -184,6 +183,7 @@ class Inc_astar:
         return res
 
     def search(self, ini, fin, cost_function, incidence_matrix, trace_sync, trace_log):
+        # print(incidence_matrix.transitions)
         ini_vec, fin_vec, cost_vec = self.vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
         closed = set()
         p_index = incidence_matrix.places
@@ -198,9 +198,6 @@ class Inc_astar:
         ini_state = Marking(h, 0, h, ini, None, None, deepcopy(x), True, self.order)
         start_time = timeit.default_timer()
         self.open_set.heap_insert(ini_state)
-        if timeit.default_timer() - start_time > 0.005:
-            # print("p1")
-            self.heap_longtime += 1
         self.time_heap += timeit.default_timer() - start_time
         self.heap_insert += 1
         self.heap_count += 1
@@ -211,9 +208,8 @@ class Inc_astar:
             start_time = timeit.default_timer()
             new_curr = self.open_set.heap_pop()
             # print("\n", self.visited)
-            if timeit.default_timer() - start_time > 0.005:
-                # print("p2")
-                self.heap_longtime += 1
+            if len(self.split_lst) == 4 and new_curr.p is not None:
+                print("\n", self.visited, new_curr.m, new_curr.f, new_curr.trust, new_curr.g, new_curr.t)
 
             self.time_heap += timeit.default_timer() - start_time
             self.heap_pop += 1
@@ -229,20 +225,20 @@ class Inc_astar:
             elif flag == "REQUEUED":
                 start_time = timeit.default_timer()
                 self.open_set.heap_insert(curr)
-                if timeit.default_timer() - start_time > 0.005:
-                    # print("p3")
-                    self.heap_longtime += 1
-
                 self.time_heap += timeit.default_timer() - start_time
                 self.heap_count += 1
                 self.heap_insert += 1
             elif flag == "RESTARTNEEDED":
                 self.split_lst = sorted(self.split_lst)
                 start_time = timeit.default_timer()
+                if len(self.split_lst) == 5:
+                    print("check open set")
+                    for new_curr in self.open_set.lst:
+                        print(new_curr.m, new_curr.f, new_curr.trust, new_curr.g, new_curr.t)
                 h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, self.split_lst, inc_matrix, cons_matrix,
                                          incidence_matrix.transitions, p_index,
                                          trace_sync, trace_log)
-                print("split_lst", self.split_lst, h)
+                # print("split_lst", self.split_lst, h)
                 self.time_h += timeit.default_timer() - start_time
                 self.lp_solved += 1
                 self.restart += 1
@@ -253,23 +249,18 @@ class Inc_astar:
                 start_time = timeit.default_timer()
                 self.open_set.heap_clear()
                 self.open_set.heap_insert(ini_state)
-                if timeit.default_timer() - start_time > 0.005:
-                    print("p4")
-                    self.heap_longtime += 1
-
                 self.time_heap += timeit.default_timer() - start_time
                 self.heap_count += 1
                 self.heap_insert += 1
                 self.max_rank = -1
             elif flag == "FINALMARKINGFOUND":
-                print("long time", self.heap_longtime)
                 return self.reconstruct_alignment(curr, len(trace_log))
             elif flag == "CLOSEDINFEASIBLE":
                 closed[curr.m] = curr
 
     def close_or_update_marking(self, marking, ini, fin, cost_vec, marking_diff,
                                 incidence_matrix, len_trace):
-        if marking.m == fin and marking.trust:
+        if marking.m == fin:
             return marking, "FINALMARKINGFOUND"
         # if the heuristic is not exact
         if not marking.trust:
@@ -323,52 +314,57 @@ class Inc_astar:
             new_g = curr.g + cost
             subseq_marking = utils.add_markings(curr.m, t.add_marking)
             self.traversed += 1
-            self.queued += 1
             # subsequent marking is fresh, compute the f score of this path and add it to open set
             if subseq_marking not in closed:
                 if not self.open_set.heap_find(subseq_marking):
                     self.order += 1
-                    tp = Marking(new_g, new_g, 0, subseq_marking, curr, t, None, False, self.order)
-                    update_tp = self.derive_or_estimate_heuristic(curr, tp, incidence_matrix, cost_vec, t)
+                    self.queued += 1
+                    new_trust = False
+                    x_prime = deepcopy(curr.x)
+                    x_prime[incidence_matrix.transitions[t]] -= 1
+                    new_x = x_prime
+                    if curr.trust and curr.x[incidence_matrix.transitions[t]] >= 1 and \
+                            curr.h != "HEURISTICINFINITE":
+                        new_h = curr.h - cost_vec[incidence_matrix.transitions[t]]
+                        new_f = new_g + new_h
+                        new_trust = True
+                        if t.label[0] != ">>":
+                            if self.get_max_events(curr) + 1 > self.max_rank:
+                                self.max_rank = self.get_max_events(curr) + 1
+                    else:
+                        if subseq_marking == self.final_marking:
+                            new_h = 0
+                            new_f = new_g
+                            new_trust = True
+                        else:
+                            new_h = curr.h - cost_vec[incidence_matrix.transitions[t]]
+                            if new_h < 0:
+                                new_h = 0
+                            new_f = new_g + new_h
+                    update_tp = Marking(new_f, new_g, new_h, subseq_marking, curr, t, new_x, new_trust, self.order)
                     start_time = timeit.default_timer()
                     self.open_set.heap_insert(update_tp)
-                    if timeit.default_timer() - start_time > 0.005:
-                        # print("p5")
-                        self.heap_longtime += 1
                     self.time_heap += timeit.default_timer() - start_time
                     self.heap_count += 1
-                    self.heap_insert += 1
+                    # if len(self.split_lst) == 1:
+                    #     print(update_tp.m, update_tp.f, update_tp.g, update_tp.h, update_tp.trust, "trans:", incidence_matrix.transitions[update_tp.t])
                 # subsequent marking has shorter path
                 elif new_g < self.open_set.heap_get(subseq_marking).g:
                     start_time = timeit.default_timer()
                     i = self.open_set.heap_get(subseq_marking)
-                    if timeit.default_timer() - start_time > 0.005:
-                        # print("p6")
-                        self.heap_longtime += 1
-
                     self.time_heap += timeit.default_timer() - start_time
                     self.heap_count += 1
                     self.heap_retrieval += 1
                     i.g = new_g
                     i.t = t
                     i.p = curr
-                    temp_h = i.h
                     if not i.trust:
                         i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
                     start_time = timeit.default_timer()
                     self.open_set.heap_remove(i.m)
-                    if timeit.default_timer() - start_time > 0.005:
-                        # print("p7_1")
-                        self.heap_longtime += 1
                     self.time_heap += timeit.default_timer() - start_time
-
                     start_time = timeit.default_timer()
-
                     self.open_set.heap_insert(i)
-                    if timeit.default_timer() - start_time > 0.005:
-                        # print("p7_2")
-                        self.heap_longtime += 1
-
                     self.time_heap += timeit.default_timer() - start_time
                     self.heap_count += 1
                     self.heap_delete += 1
@@ -377,28 +373,26 @@ class Inc_astar:
                 else:
                     start_time = timeit.default_timer()
                     i = self.open_set.heap_get(subseq_marking)
-                    if timeit.default_timer() - start_time > 0.005:
-                        self.heap_longtime += 1
-                        # print("p8")
                     self.time_heap += timeit.default_timer() - start_time
                     self.heap_count += 1
                     self.heap_retrieval += 1
                     if not i.trust:
                         i = self.derive_or_estimate_heuristic(curr, i, incidence_matrix, cost_vec, t)
-                        start_time = timeit.default_timer()
-                        self.open_set.heap_remove(i.m)
-                        self.open_set.heap_insert(i)
-                        if timeit.default_timer() - start_time > 0.005:
-                            self.heap_longtime += 1
-                            # print("p9")
-                        self.time_heap += timeit.default_timer() - start_time
-                        self.heap_delete += 1
-                        self.heap_insert += 1
-                        self.heap_count += 1
+                        if i.trust:
+                            # print("发生了")
+                            # print("update marking", incidence_matrix.transitions[i.t], i.m, i.f, i.g, i.h, i.trust)
+                            start_time = timeit.default_timer()
+                            self.open_set.heap_remove(i.m)
+                            self.open_set.heap_insert(i)
+                            self.time_heap += timeit.default_timer() - start_time
+                            self.heap_delete += 1
+                            self.heap_insert += 1
+                            self.heap_count += 1
 
     def derive_or_estimate_heuristic(self, from_marking, to_marking, incidence_matrix, cost_vec, t):
         # if from marking has exact heuristic, we can derive from it
-        if from_marking.trust and from_marking.x[incidence_matrix.transitions[t]] >= 1 and from_marking.h != "HEURISTICINFINITE":
+        if from_marking.trust and not to_marking.trust and from_marking.x[incidence_matrix.transitions[t]] >= 1 and \
+                from_marking.h != "HEURISTICINFINITE":
             x_prime = deepcopy(from_marking.x)
             x_prime[incidence_matrix.transitions[t]] -= 1
             to_marking.x = x_prime
@@ -408,6 +402,7 @@ class Inc_astar:
             if t.label[0] != ">>":
                 if self.get_max_events(to_marking) > self.max_rank:
                     self.max_rank = self.get_max_events(to_marking)
+
         # if heuristic of from marking is infinite, then we return
         elif from_marking.h == "HEURISTICINFINITE":
             to_marking.h = "HEURISTICINFINITE"
@@ -610,107 +605,3 @@ def _has_parent(idx):
         return False
     else:
         return True
-
-class MinHeap:
-    def __init__(self):
-        self.lst = []
-        self.idx = {}
-
-    def swap(self, idx1, idx2):
-        # temp = self.lst[idx1]
-        # self.lst[idx1] = self.lst[idx2]
-        # self.idx[self.lst[idx1].m] = idx1
-        # self.lst[idx2] = temp
-        # self.idx[self.lst[idx2].m] = idx2
-        # swap two elements for the index map and list position
-        self.lst[idx1], self.lst[idx2] = self.lst[idx2], self.lst[idx1]
-        self.idx[self.lst[idx1].m], self.idx[self.lst[idx2].m] = self.idx[self.lst[idx2].m],  self.idx[self.lst[idx1].m]
-
-    def heap_insert(self, marking):
-        self.lst.append(marking)
-        self.idx[marking.m] = len(self.lst)-1
-        self._heap_heapify_up()
-
-    def heap_pop(self):
-        # print(len(self.lst), self.lst[0])
-        marking_to_pop = self.lst[0]
-        del self.idx[marking_to_pop.m]
-        # update list and index
-        self.lst[0] = self.lst[-1]
-        self.idx[self.lst[0].m] = 0
-        # remove the last element
-        self.lst.pop()
-        self._heap_heapify_down(0)
-        return marking_to_pop
-
-    def heap_find(self, m):
-        return True if m in self.idx else False
-
-    def heap_get(self, m):
-        return self.lst[self.idx[m]]
-
-    def heap_remove(self,m):
-        idx_to_remove = self.idx[m]
-        marking_to_pop = self.lst[self.idx[m]]
-        if len(self.lst)-1 == 1:
-            self.heap_clear()
-        else:
-            del self.idx[marking_to_pop.m]
-            # update list and index
-            self.idx[self.lst[-1].m] = idx_to_remove
-            self.lst[idx_to_remove] = self.lst[-1]
-            # remove the last element
-            self.lst.pop()
-            self._heap_heapify_down(idx_to_remove)
-
-    def heap_clear(self):
-        self.lst.clear()
-        self.idx.clear()
-
-    def _heap_heapify_down(self, idx):
-        while self._has_left_child(idx):
-            smaller_index = idx*2+1
-            if idx*2+2 < len(self.lst) and self.lst[idx*2+2] < self.lst[idx*2+1]:
-                smaller_index = idx*2+2
-            if self.lst[idx] < self.lst[smaller_index]:
-                break
-            else:
-                self.swap(smaller_index, idx)
-            idx = smaller_index
-
-    def _heap_heapify_up(self):
-        # start_time = timeit.default_timer()
-        index = len(self.lst) - 1
-        # flag = 0
-        while index != 0 and self.lst[index] < self.lst[int((index - 1) // 2)]:
-            # self.swap(int((index - 1) // 2), index)
-            parent_index = int((index - 1) // 2)
-            self.lst[index], self.lst[parent_index] = self.lst[parent_index], self.lst[index]
-            self.idx[self.lst[index].m], self.idx[self.lst[parent_index].m] = \
-                self.idx[self.lst[parent_index].m], self.idx[self.lst[index].m]
-            index = parent_index
-
-    def _has_left_child(self, idx):
-        if idx*2+1 < len(self.lst):
-            return True
-        else:
-            return False
-
-    def _get_parent(self, index):
-        return int((index - 1) // 2)
-
-    def _has_right_child(self, idx):
-        if idx*2+2 < len(self.lst):
-            return True
-        else:
-            return False
-
-    def print_idx(self):
-        print(self.idx)
-
-    def print_lst(self):
-        for i in self.lst:
-            print(i.m)
-
-    def get_len(self):
-        return len(self.lst)

@@ -569,6 +569,5 @@ def reconstruct_alignment(state, visited, queued, traversed, lp_solved, time_h, 
         "time_heap":0,
         'visited_states': visited,
         'traversed_arcs': traversed,
-        # 'trace_length': trace_length,
         'alignment': alignment,
     }

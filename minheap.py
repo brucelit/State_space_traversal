@@ -14,14 +14,14 @@ class MinHeap:
         self.idx = {}
 
     def swap(self, idx1, idx2):
-        # temp = self.lst[idx1]
-        # self.lst[idx1] = self.lst[idx2]
-        # self.idx[self.lst[idx1].m] = idx1
-        # self.lst[idx2] = temp
-        # self.idx[self.lst[idx2].m] = idx2
+        temp = self.lst[idx1]
+        self.lst[idx1] = self.lst[idx2]
+        self.idx[self.lst[idx1].m] = idx1
+        self.lst[idx2] = temp
+        self.idx[self.lst[idx2].m] = idx2
         # swap two elements for the index map and list position
-        self.lst[idx1], self.lst[idx2] = self.lst[idx2], self.lst[idx1]
-        self.idx[self.lst[idx1].m], self.idx[self.lst[idx2].m] = self.idx[self.lst[idx2].m],  self.idx[self.lst[idx1].m]
+        # self.lst[idx1], self.lst[idx2] = self.lst[idx2], self.lst[idx1]
+        # self.idx[self.lst[idx1].m], self.idx[self.lst[idx2].m] = self.idx[self.lst[idx2].m], self.idx[self.lst[idx1].m]
 
     def heap_insert(self, marking):
         self.lst.append(marking)
@@ -30,15 +30,20 @@ class MinHeap:
 
     def heap_pop(self):
         # print(len(self.lst), self.lst[0])
-        marking_to_pop = self.lst[0]
-        del self.idx[marking_to_pop.m]
-        # update list and index
-        self.lst[0] = self.lst[-1]
-        self.idx[self.lst[0].m] = 0
-        # remove the last element
-        self.lst.pop()
-        self._heap_heapify_down(0)
-        return marking_to_pop
+        if len(self.lst) > 1:
+            marking_to_pop = self.lst[0]
+            del self.idx[marking_to_pop.m]
+            # update list and index
+            self.lst[0] = self.lst[-1]
+            self.idx[self.lst[0].m] = 0
+            # remove the last element
+            self.lst.pop()
+            self._heap_heapify_down(0)
+            return marking_to_pop
+        else:
+            marking_to_pop = self.lst[0]
+            self.heap_clear()
+            return marking_to_pop
 
     def heap_find(self, m):
         return True if m in self.idx else False
@@ -80,9 +85,10 @@ class MinHeap:
         while index != 0 and self.lst[index] < self.lst[int((index - 1) // 2)]:
             # self.swap(int((index - 1) // 2), index)
             parent_index = int((index - 1) // 2)
-            self.lst[index], self.lst[parent_index] = self.lst[parent_index], self.lst[index]
-            self.idx[self.lst[index].m], self.idx[self.lst[parent_index].m] = \
-                self.idx[self.lst[parent_index].m], self.idx[self.lst[index].m]
+            # self.lst[index], self.lst[parent_index] = self.lst[parent_index], self.lst[index]
+            # self.idx[self.lst[index].m], self.idx[self.lst[parent_index].m] = \
+            #     self.idx[self.lst[parent_index].m], self.idx[self.lst[index].m]
+            self.swap(parent_index, index)
             index = parent_index
 
     def _has_left_child(self, idx):

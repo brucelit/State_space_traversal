@@ -17,6 +17,8 @@ import astar_tue
 
 from tqdm import tqdm
 
+import astar_tue_pp
+
 
 def search():
     # Here to change the log file in dataset: the .xes file
@@ -36,7 +38,7 @@ def search():
                    ]
     
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\c19\c19_tue_20220103.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\c19\c19_cache_pp_20220105.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
@@ -45,7 +47,7 @@ def search():
                   'traversed_arcs': [], 'lp_solved': [], 'restart': []}
 
         # loop 5 times and get average
-        for i in range(4):
+        for i in range(1):
             # align1 = astar_bid.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             # print(align)
@@ -55,12 +57,13 @@ def search():
             # align1 = astar_.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             # print(align)
-            align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+            # align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+            # print("\n", align)
+
+            align1 = astar_tue_pp.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             print(align)
-            # align1 = astar_cache_pp.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            # print(align)
 
             # Choice 8: the algorithm from pm4py
             # align = astar_pm4py.apply(event_log[case_index], model_net, model_im, model_fm)
@@ -117,13 +120,13 @@ def search():
         result2['cost'] = statistics.mean(result['cost'])
         result2['restart'] = statistics.mean(result['restart'])
 
-        with open('F:\Thesis\data\c19\c19_tue_20220103.csv', 'a') as f_object:
+        with open('F:\Thesis\data\c19\c19_cache_pp_20220105.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(result2)
             # Close the file object
             f_object.close()
-    df = pd.read_csv('F:\Thesis\data\c19\c19_tue_20220103.csv')
+    df = pd.read_csv('F:\Thesis\data\c19\c19_cache_pp_20220105.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -135,7 +138,7 @@ def search():
                                                      "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\c19\c19_tue_20220103.csv', index=False)
+    df3.to_csv('F:\Thesis\data\c19\c19_cache_pp_20220105.csv', index=False)
 
 if __name__ == "__main__":
     search()

@@ -11,7 +11,6 @@ def get_ini_heuristic(ini_vec, fin_vec, cost, split_lst,
                       t_index, p_index,
                       trace_lst_sync,
                       trace_lst_log):
-    print(split_lst)
     start_time = timeit.default_timer()
     # Define problem
     m = gp.Model()
@@ -66,7 +65,6 @@ def get_ini_heuristic(ini_vec, fin_vec, cost, split_lst,
 
 # compute the exact heuristic of marking m
 def get_exact_heuristic(marking_diff, incidence_matrix, cost_vec):
-    start_time = timeit.default_timer()
     m = gp.Model()
     m.Params.LogToConsole = 0
     x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
@@ -84,7 +82,7 @@ def get_exact_heuristic_new(marking, split_lst, marking_diff, ini, incidence_mat
     if marking.m != ini:
         if rank not in split_lst:
             insert_position = -1
-    if marking.m == ini or insert_position > 0 or rank > trace_len-1:
+    if marking.m == ini or insert_position > 0 or rank >= trace_len-1:
         m = gp.Model()
         m.Params.LogToConsole = 0
         x = m.addMVar((1, len(cost_vec)), vtype=GRB.INTEGER, lb=0)
