@@ -13,7 +13,6 @@ import astar_pm4py
 import astar_reverse
 import astar_tue
 from tqdm import tqdm
-
 import astar_tue_pp
 
 
@@ -33,23 +32,24 @@ def search():
                    "queued_states",
                    "traversed_arcs",
                    "restart",
+                   'trace_length',
                    'cost']
 
-    df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0104.csv', sep=',', index=False)
+    # df = pd.DataFrame(columns=field_names)
+    # df.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
-        # if case_index <= 2000:
-        #     continue
-        # if case_index > 2000:
-        #     break
+        if case_index != 63:
+            continue
+        if case_index > 63:
+            break
         result2 = {}
         result = {'time_sum': [], 'time_h': [], 'time_heap': [], 'cost': [], 'visited_states': [], "queued_states": [],
-                  'traversed_arcs': [], 'lp_solved': [], 'restart': []}
+                  'traversed_arcs': [], 'lp_solved': [], 'restart': [], 'trace_length':[] }
 
         # loop 5 times and get average
-        for i in range(1):
+        for i in range(10):
             '''
             # Choose one of the following align, then save the results in csv file for further analysis
             # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
@@ -108,12 +108,13 @@ def search():
             result['time_sum'].append(align['time_sum'])
             result['time_h'].append(align['time_h'])
             result['time_heap'].append(align['time_heap'])
-            result['cost'].append(align['cost'])
             result['visited_states'].append(align['visited_states'])
             result['queued_states'].append(align['queued_states'])
             result['traversed_arcs'].append(align['traversed_arcs'])
             result['lp_solved'].append(align['lp_solved'])
             result['restart'].append(align['restart'])
+            result['trace_length'].append(align['trace_length'])
+            result['cost'].append(align['cost'])
 
             result2['time_sum'] = statistics.mean(result['time_sum'])
             result2['time_h'] = statistics.mean(result['time_h'])
@@ -122,28 +123,30 @@ def search():
             result2['visited_states'] = statistics.mean(result['visited_states'])
             result2['queued_states'] = statistics.mean(result['queued_states'])
             result2['traversed_arcs'] = statistics.mean(result['traversed_arcs'])
-            result2['cost'] = statistics.mean(result['cost'])
             result2['restart'] = statistics.mean(result['restart'])
+            result2['trace_length'] = statistics.mean(result['trace_length'])
+            result2['cost'] = statistics.mean(result['cost'])
 
-        with open('F:\Thesis\data\BPIC19_2\BPIC_tue_0104.csv', 'a') as f_object:
-            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-            # Pass the dictionary as an argument to the Writerow()
-            dictwriter_object.writerow(result2)
-            # Close the file object
-            f_object.close()
-    df = pd.read_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0104.csv')
-    total = df.sum()
-    df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
-                                                     "time_h",
-                                                     "time_heap",
-                                                     "lp_solved",
-                                                     "visited_states",
-                                                     "queued_states",
-                                                     "traversed_arcs",
-                                                     "restart",
-                                                     "cost"])
-    df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0104.csv', index=False)
+    #     with open('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv', 'a') as f_object:
+    #         dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+    #         # Pass the dictionary as an argument to the Writerow()
+    #         dictwriter_object.writerow(result2)
+    #         # Close the file object
+    #         f_object.close()
+    # df = pd.read_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv')
+    # total = df.sum()
+    # df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
+    #                                                  "time_h",
+    #                                                  "time_heap",
+    #                                                  "lp_solved",
+    #                                                  "visited_states",
+    #                                                  "queued_states",
+    #                                                  "traversed_arcs",
+    #                                                  "restart",
+    #                                                  "trace_length",
+    #                                                  "cost"])
+    # df3 = pd.concat([df2, df]).reset_index(drop=True)
+    # df3.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv', index=False)
 
 
 if __name__ == "__main__":
