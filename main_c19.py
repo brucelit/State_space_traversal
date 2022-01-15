@@ -22,7 +22,7 @@ import astar_tue_pp
 
 def search():
     # Here to change the log file in dataset: the .xes file
-    event_log = xes_importer.apply('F:\Thesis\data\CCC19 XES.xes')
+    event_log = xes_importer.apply('F:\Thesis\data\CCC19 XES_02.xes')
     # Here to change the model in dataset: the .pnml file
     model_net, model_im, model_fm = import_net('F:\Thesis\data\CCC19 - Model PN.pnml')
     # the colunm name in result csv file
@@ -37,8 +37,8 @@ def search():
                    "trace_length",
                    'cost']
     
-    df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\c19\c19_tue_20220107.csv', sep=',', index=False)
+    # df = pd.DataFrame(columns=field_names)
+    # df.to_csv('F:\Thesis\data\c19\c19_tue_20220114.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
@@ -56,11 +56,9 @@ def search():
             # print(align)
             # align1 = astar_.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            # print(align)
+            # # print(align)
             align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            print("\n", align)
-
             # align1 = astar_tue_pp.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             # print(align)
@@ -73,7 +71,7 @@ def search():
             # print(align)
             # align1 = astar_cache_ap.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            # print(align)
+            print(align)
             # align = astar_tue_latest.apply(case, model_net, model_im, model_fm)
             # align = astar_tue_cache2.apply(case, model_net, model_im, model_fm)
             # align = astar_tue_cache3.apply(case, model_net, model_im, model_fm)
@@ -122,27 +120,27 @@ def search():
         result2['restart'] = statistics.mean(result['restart'])
         result2['trace_length'] = statistics.mean(result['trace_length'])
 
-        with open('F:\Thesis\data\c19\c19_tue_20220107.csv', 'a') as f_object:
-            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
-            # Pass the dictionary as an argument to the Writerow()
-            dictwriter_object.writerow(result2)
-            # Close the file object
-            f_object.close()
+        # with open('F:\Thesis\data\c19\c19_tue_20220114.csv', 'a') as f_object:
+        #     dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+        #     # Pass the dictionary as an argument to the Writerow()
+        #     dictwriter_object.writerow(result2)
+        #     # Close the file object
+        #     f_object.close()
 
-    df = pd.read_csv('F:\Thesis\data\c19\c19_tue_20220107.csv')
-    total = df.sum()
-    df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
-                                                     "time_h",
-                                                     "time_heap",
-                                                     "lp_solved",
-                                                     "visited_states",
-                                                     "queued_states",
-                                                     "traversed_arcs",
-                                                     "restart",
-                                                     "trace_length",
-                                                     "cost"])
-    df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\c19\c19_tue_20220107.csv', index=False)
+    # df = pd.read_csv('F:\Thesis\data\c19\c19_tue_20220114.csv')
+    # total = df.sum()
+    # df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
+    #                                                  "time_h",
+    #                                                  "time_heap",
+    #                                                  "lp_solved",
+    #                                                  "visited_states",
+    #                                                  "queued_states",
+    #                                                  "traversed_arcs",
+    #                                                  "restart",
+    #                                                  "trace_length",
+    #                                                  "cost"])
+    # df3 = pd.concat([df2, df]).reset_index(drop=True)
+    # df3.to_csv('F:\Thesis\data\c19\c19_tue_20220114.csv', index=False)
 
 if __name__ == "__main__":
     search()

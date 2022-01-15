@@ -35,7 +35,7 @@ def search():
                    'cost']
 
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\sepsis\sepsis_tue_20220107.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\sepsis\sepsis_tue_20220108.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
@@ -107,13 +107,13 @@ def search():
         result2['restart'] = statistics.mean(result['restart'])
         result2['trace_length'] = statistics.mean(result['trace_length'])
 
-        with open('F:\Thesis\data\sepsis\sepsis_tue_20220107.csv', 'a') as f_object:
+        with open('F:\Thesis\data\sepsis\sepsis_tue_20220108.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(result2)
             # Close the file object
             f_object.close()
-    df = pd.read_csv('F:\Thesis\data\sepsis\sepsis_tue_20220107.csv')
+    df = pd.read_csv('F:\Thesis\data\sepsis\sepsis_tue_20220108.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -125,7 +125,7 @@ def search():
                                                      "restart",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\sepsis\sepsis_tue_20220107.csv', index=False)
+    df3.to_csv('F:\Thesis\data\sepsis\sepsis_tue_20220108.csv', index=False)
 
 
 if __name__ == "__main__":

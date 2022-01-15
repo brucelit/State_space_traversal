@@ -18,8 +18,9 @@ import astar_tue_pp
 
 def search():
     # Here to change the log file in dataset: the .xes file
-    event_log = xes_importer.apply('data\Log_BPIC19_2_new.xes')
     # event_log = xes_importer.apply('data\Log_BPIC19_2_new.xes')
+
+    event_log = xes_importer.apply('data\Log_BPIC19_2_364.xes')
     # Here to change the model in dataset: the .pnml file
     model_net, model_im, model_fm = import_net('F:\Thesis\data\BPIC19_2_IM.pnml')
     
@@ -36,20 +37,19 @@ def search():
                    'cost']
 
     # df = pd.DataFrame(columns=field_names)
-    # df.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv', sep=',', index=False)
+    # df.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0108_1822.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
-        if case_index != 63:
-            continue
-        if case_index > 63:
-            break
         result2 = {}
         result = {'time_sum': [], 'time_h': [], 'time_heap': [], 'cost': [], 'visited_states': [], "queued_states": [],
                   'traversed_arcs': [], 'lp_solved': [], 'restart': [], 'trace_length':[] }
-
+        # if case_index<1800:
+        #     continue
+        # if case_index >=1800:
+        #     break
         # loop 5 times and get average
-        for i in range(10):
+        for i in range(1):
             '''
             # Choose one of the following align, then save the results in csv file for further analysis
             # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
@@ -59,7 +59,7 @@ def search():
             # align = astar_pm4py.apply(event_log[case_index], model_net, model_im, model_fm)
 
             # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
-
+            #
             align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
             align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
             print(align)
@@ -90,7 +90,7 @@ def search():
                 trace_lst1.append(event['concept:name'])
                 trace_lst2.insert(0, event['concept:name'])
             violate_lst_forward = precompute_forward(trace_lst1, ic)
-            violate_lst_backward = precompute_backward(trace_lst2, ic)
+            violate_lst_backward = precompute_backward(trac e_lst2, ic)
             align = astar_precompute.apply(case, model_net, model_im, model_fm)
             '''
 
@@ -127,13 +127,13 @@ def search():
             result2['trace_length'] = statistics.mean(result['trace_length'])
             result2['cost'] = statistics.mean(result['cost'])
 
-    #     with open('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv', 'a') as f_object:
+    #     with open('F:\Thesis\data\BPIC19_2\BPIC_tue_0108_1822.csv', 'a') as f_object:
     #         dictwriter_object = DictWriter(f_object, fieldnames=field_names)
     #         # Pass the dictionary as an argument to the Writerow()
     #         dictwriter_object.writerow(result2)
     #         # Close the file object
     #         f_object.close()
-    # df = pd.read_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv')
+    # df = pd.read_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0108_1822.csv')
     # total = df.sum()
     # df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
     #                                                  "time_h",
@@ -146,7 +146,7 @@ def search():
     #                                                  "trace_length",
     #                                                  "cost"])
     # df3 = pd.concat([df2, df]).reset_index(drop=True)
-    # df3.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0106_12-16.csv', index=False)
+    # df3.to_csv('F:\Thesis\data\BPIC19_2\BPIC_tue_0108_1822.csv', index=False)
 
 
 if __name__ == "__main__":

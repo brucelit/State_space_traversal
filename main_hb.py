@@ -17,7 +17,10 @@ import astar_tue_pp
 
 def search():
     # Here to change the log file in dataset: the .xes file
+
+    # event_log = xes_importer.apply('data\Log_hospital_new.xes')
     event_log = xes_importer.apply('data\Log_hospital_new.xes')
+
     # Here to change the model in dataset: the .pnml file
     model_net, model_im, model_fm = import_net('F:\Thesis\data\hb02.pnml')
     # the colunm name in result csv file
@@ -31,9 +34,8 @@ def search():
                    "restart",
                    "trace_length",
                    'cost']
-
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\hospital\hospital_tue_20220107.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\hospital\hospital_tue_20220110_rank-2.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
     for case_index in tqdm(range(len(event_log))):
@@ -82,6 +84,8 @@ def search():
 
             # Choice 8: the algorithm from pm4py
             # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
+            # print(align)
+
             # align = astar_pm4py.apply(case, model_net, model_im, model_fm)
 
             result['time_sum'].append(align['time_sum'])
@@ -106,14 +110,13 @@ def search():
         result2['restart'] = statistics.mean(result['restart'])
         result2['trace_length'] = statistics.mean(result['trace_length'])
 
-        with open('F:\Thesis\data\hospital\hospital_tue_20220107.csv', 'a') as f_object:
+        with open('F:\Thesis\data\hospital\hospital_tue_20220110_rank-2.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
             dictwriter_object.writerow(result2)
             # Close the file object
             f_object.close()
-
-    df = pd.read_csv('F:\Thesis\data\hospital\hospital_tue_20220107.csv')
+    df = pd.read_csv('F:\Thesis\data\hospital\hospital_tue_20220110_rank-2.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
                                                      "time_h",
@@ -126,7 +129,7 @@ def search():
                                                      "trace_length",
                                                      "cost"])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\hospital\hospital_tue_20220107.csv', index=False)
+    df3.to_csv('F:\Thesis\data\hospital\hospital_tue_20220110_rank-2.csv', index=False)
 
 
 if __name__ == "__main__":
