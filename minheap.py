@@ -14,14 +14,8 @@ class MinHeap:
         self.idx = {}
 
     def swap(self, idx1, idx2):
-        temp = self.lst[idx1]
-        self.lst[idx1] = self.lst[idx2]
-        self.idx[self.lst[idx1].m] = idx1
-        self.lst[idx2] = temp
-        self.idx[self.lst[idx2].m] = idx2
-        # swap two elements for the index map and list position
-        # self.lst[idx1], self.lst[idx2] = self.lst[idx2], self.lst[idx1]
-        # self.idx[self.lst[idx1].m], self.idx[self.lst[idx2].m] = self.idx[self.lst[idx2].m], self.idx[self.lst[idx1].m]
+        self.lst[idx1], self.lst[idx2] = self.lst[idx2], self.lst[idx1]
+        self.idx[self.lst[idx1].m], self.idx[self.lst[idx2].m] = self.idx[self.lst[idx2].m], self.idx[self.lst[idx1].m]
 
     def heap_insert(self, marking):
         self.lst.append(marking)
@@ -50,20 +44,6 @@ class MinHeap:
 
     def heap_get(self, m):
         return self.lst[self.idx[m]]
-
-    # def heap_remove(self,m):
-    #     idx_to_remove = self.idx[m]
-    #     marking_to_pop = self.lst[self.idx[m]]
-    #     if len(self.lst)-1 == 1:
-    #         self.heap_clear()
-    #     else:
-    #         del self.idx[marking_to_pop.m]
-    #         # update list and index
-    #         self.idx[self.lst[-1].m] = idx_to_remove
-    #         self.lst[idx_to_remove] = self.lst[-1]
-    #         # remove the last element
-    #         self.lst.pop()
-    #         self._heap_heapify_down(idx_to_remove)
 
     def heap_update(self, marking):
         idx_to_update = self.idx[marking.m]
@@ -123,25 +103,23 @@ class MinHeap:
         return len(self.lst)
 
 class Marking:
-    def __init__(self, m, f, g):
+    def __init__(self, m, f, x):
         self.m = m
         self.f = f
-        self.g = g
+        self.x = x
 
     def __lt__(self, other):
         if self.f < other.f:
             return True
-        if self.g < other.g:
-            return True
 
 
 if __name__ == '__main__':
-    m1 = Marking("a", 4, 4)
-    m2 = Marking("b", 3, 3)
-    m3 = Marking("c", 2, 2)
-    m4 = Marking("d", 5, 5)
-    m5 = Marking("e", 1, 1)
-    m6 = Marking("f", 6, 6)
+    m1 = Marking("a", 6, [0])
+    m2 = Marking("b", 1, [3])
+    m3 = Marking("c", 2, [2])
+    m4 = Marking("d", 3, [5])
+    m5 = Marking("e", 4, [1])
+    m6 = Marking("f", 5, [6])
 
     heap1 = MinHeap()
     heap1.heap_insert(m1)
@@ -155,18 +133,21 @@ if __name__ == '__main__':
     heap1.print_idx()
     heap1.print_lst()
 
-    heap1.heap_pop()
-    print("remove the first")
+    a1 = heap1.heap_get("a")
+
+    # 这样赋值是会导致a的x也变化的
+    b1 = a1
+    b1.x = [145]
+    b1.f = 0
+
+    # 这样赋值才不会改变a
+    b1 = Marking(a1.m, a1.f, a1.x)
 
     heap1.print_idx()
-    heap1.print_lst()
-    i = heap1.heap_get("a")
-    i.f = 2
-    i.g = 2
-    heap1.heap_update(i)
+    for i in heap1.lst:
+        print(i.m, i.f, i.x)
 
-    m7 = Marking("g", 7, 7)
-    heap1.heap_insert(m7)
+    heap1.heap_update(a1)
     heap1.print_idx()
-    heap1.print_lst()
-    print(heap1.heap_find("f"))
+    for i in heap1.lst:
+        print(i.m, i.f, i.x)

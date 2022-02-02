@@ -33,7 +33,7 @@ def precompute_forward(trace_lst, ic):
             lst2.append(lst[i])
         i += 1
     v2 = {key: val for key, val in violate_lst.items() if val not in lst2}
-    return v2
+    return list(v2.values())
 
 # compute the split point before search
 def precompute_backward(trace_lst, ic):
@@ -67,7 +67,7 @@ def precompute_backward(trace_lst, ic):
     return v2
 
 
-def construct_cost_aware_forward(pn1, im1, fm1, pn2, im2, fm2, skip, pn1_costs, pn2_costs, sync_costs):
+def construct_cost_aware(pn1, im1, fm1, pn2, im2, fm2, skip, pn1_costs, pn2_costs, sync_costs):
     """
     Constructs the synchronous product net of two given Petri nets.
 
