@@ -52,7 +52,7 @@ class Inc_astar:
         self.lp_for_ini_solved = 0
         self.restart = 0
         self.max_rank = -2
-        self.time_h = 0
+        self.time_heuristic = 0
         self.open_set = minheap.MinHeap()
         self.time_heap = 0
         self.time_sort = 0
@@ -63,7 +63,8 @@ class Inc_astar:
         self.num_insert = 0
         self.num_update = 0
         self.num_retrieval = 0
-        self.num_pop = 0
+        self.num_removal = 0
+        self.num_reopen_close = 0
 
     def apply(self, trace, petri_net, initial_marking, final_marking, parameters=None):
         """
@@ -183,106 +184,95 @@ class Inc_astar:
         self.incidence_matrix = incidence_matrix
         res = self.search(initial_marking, final_marking, cost_function, incidence_matrix,
                           trace_sync, trace_log)
-
         res['time_sum'] = timeit.default_timer() - start_time
         return res
 
-
     def search(self, ini, fin, cost_function, incidence_matrix, trace_sync, trace_log):
         ini_vec, fin_vec, cost_vec = self.vectorize_initial_final_cost(incidence_matrix, ini, fin, cost_function)
-        closed = set()
+        closed = {}
         p_index = incidence_matrix.places
         inc_matrix = incidence_matrix.a_matrix
         cons_matrix = incidence_matrix.b_matrix
-
         start_time = timeit.default_timer()
         h, x = get_exact_heuristic(fin_vec - ini_vec, inc_matrix, cost_vec)
-        self.time_h += timeit.default_timer() - start_time
+        self.time_heuristic += timeit.default_timer() - start_time
         self.lp_solved += 1
-
         # add initial marking to open set
         ini_state = Marking(h, 0, h, ini, None, None, deepcopy(x), True, self.order)
         start_time = timeit.default_timer()
         self.open_set.heap_insert(ini_state)
         self.time_heap += timeit.default_timer() - start_time
-
+        self.num_insert += 1
+        self.queued += 1
         # while not all states visited
         while self.open_set:
-            self.num_pop += 1
-            # if (timeit.default_timer() - search_start_time) > 1000:
-            #     return None
-            # get the most promising marking
             start_time = timeit.default_timer()
             new_curr = self.open_set.heap_pop()
             self.time_heap += timeit.default_timer() - start_time
-            print("\n", self.visited, new_curr.m, new_curr.f, new_curr.trust, self.get_max_events(new_curr))
-
+            self.num_removal += 1
+            # print("\n", self.visited, new_curr.m)
+            # if new_curr.p is not None:
+            #     print("\n", self.visited, new_curr.m, new_curr.trust, new_curr.f,
+            #           "g:", new_curr.g,
+            #           "paths:", self.get_path(new_curr,incidence_matrix),
+            #           "sol:", new_curr.x,
+            #           # "max:", self.get_max_events(new_curr),
+            #           "\npre marking:", new_curr.p.m)
+            if new_curr.p is not None and len(self.split_lst) == 3:
+            # if new_curr.p is not None:
+                print("\n", self.visited, new_curr.m, new_curr.f, new_curr.trust,
+                      "g:", new_curr.g, "max:", self.get_max_events(new_curr), "pre:", new_curr.p.m,
+                      "sol:", new_curr.x
+                      )
             marking_diff = fin_vec - incidence_matrix.encode_marking(new_curr.m)
-            curr, flag = \
-                self.close_or_update_marking(new_curr, ini_state.m, fin, cost_vec,
-                                             marking_diff, incidence_matrix, len(trace_log))
+            curr, flag = self.close_or_update_marking(new_curr, ini_state.m, fin, cost_vec,
+                                                      marking_diff, incidence_matrix, len(trace_log))
             if flag == "CLOSEDSUCCESSFUL":
-                closed.add(curr.m)
+                closed[curr.m] = curr.g
                 self.visited += 1
                 self.expand_marking(cost_function, curr, incidence_matrix, cost_vec, closed)
             elif flag == "REQUEUED":
                 start_time = timeit.default_timer()
                 self.open_set.heap_insert(curr)
                 self.time_heap += timeit.default_timer() - start_time
-                self.queued += 1
                 self.num_insert += 1
+                self.queued += 1
             elif flag == "RESTARTNEEDED":
+                # if len(self.split_lst) == 6:
+                #     print("before start we check")
+                #     # check open set
+                #     for i in self.open_set.lst:
+                #         print("check", i.m, i.trust, i.f, i.g, i.h)
+
                 self.split_lst = sorted(self.split_lst)
                 start_time = timeit.default_timer()
-                print("split_lst", self.split_lst)
+
                 h, x = get_ini_heuristic(ini_vec, fin_vec, cost_vec, self.split_lst, inc_matrix, cons_matrix,
                                          incidence_matrix.transitions, p_index,
                                          trace_sync, trace_log)
-
-                self.time_h += timeit.default_timer() - start_time
+                self.time_heuristic += timeit.default_timer() - start_time
+                print("split_lst", self.split_lst, "\nsolution vec:",x)
                 self.lp_for_ini_solved += 1
                 self.restart += 1
                 # restart by reset open set and closed set
-                closed = set()
+                closed = {}
                 self.order = 0
-                ini_state = Marking(h, 0, h, ini, None, None, deepcopy(x), True, self.order)
+                ini_state = Marking(h, 0, h, ini, None, None, deepcopy(list(x)), True, self.order)
+                self.open_set.heap_clear()
                 start_time = timeit.default_timer()
-                self.open_set = minheap.MinHeap()
                 self.open_set.heap_insert(ini_state)
                 self.time_heap += timeit.default_timer() - start_time
+                self.queued += 1
+                self.num_insert += 1
                 self.max_rank = -2
             elif flag == "FINALMARKINGFOUND":
                 return self.reconstruct_alignment(curr, len(trace_log))
             elif flag == "CLOSEDINFEASIBLE":
-                closed.add(curr.m)
+                closed[curr.m] = curr.g
 
     def close_or_update_marking(self, marking, ini, fin, cost_vec, marking_diff,
                                 incidence_matrix, len_trace):
         if marking.m == fin and marking.h == 0:
-            # it_marking = marking
-            # df = pd.DataFrame(columns=["marking", "f", "trust", "max event", "g", "path length", "order", "pre trans:"])
-            # while it_marking.p is not None:
-            #     to_append = [it_marking.m, it_marking.f, it_marking.trust, self.get_max_events(it_marking), it_marking.g,
-            #                  self.get_path_length(it_marking), it_marking.order, it_marking.t]
-            #     it_marking = it_marking.p
-            #     a_series = pd.Series(to_append, index=df.columns)
-            #     df = df.append(a_series, ignore_index=True)
-            # df.to_csv("data\Tue_astar_path.csv", sep=',')
-            #
-            # df = pd.DataFrame(columns=["marking", "f", "trust", "max event", "g", "path length", "order", "pre trans",
-            #                            "pre marking"])
-            # for it_marking in self.open_set.lst:
-            #     if it_marking.p is not None:
-            #         to_append = [it_marking.m, it_marking.f, it_marking.trust, self.get_max_events(it_marking), it_marking.g,
-            #                      self.get_path_length(it_marking), it_marking.order, it_marking.t, it_marking.p.m]
-            #     else:
-            #         to_append = [it_marking.m, it_marking.f, it_marking.trust, self.get_max_events(it_marking),
-            #                      it_marking.g,
-            #                      self.get_path_length(it_marking), it_marking.order, it_marking.t, None]
-            #     a_series = pd.Series(to_append, index=df.columns)
-            #     df = df.append(a_series, ignore_index=True)
-            # df.to_csv("data\Tue_astar_open_set.csv", sep=',')
-
             return marking, "FINALMARKINGFOUND"
 
         if not marking.trust:
@@ -291,10 +281,10 @@ class Inc_astar:
             h, x, trustable, self.split_lst, self.max_rank = \
                 get_exact_heuristic_new(marking, self.split_lst, marking_diff, ini, incidence_matrix.a_matrix,
                                         cost_vec, self.max_rank, len_trace)
-            self.time_h += timeit.default_timer() - start_time
-
-            # need to restart
+            self.time_heuristic += timeit.default_timer() - start_time
+            # print("compute h:")
             if h == -1:
+                # need to restart
                 return marking, "RESTARTNEEDED"
             # heuristic is not computable, from which final marking is unreachable
             elif trustable == "Infeasible":
@@ -302,25 +292,27 @@ class Inc_astar:
                 return marking, "CLOSEDINFEASIBLE"
             # if the heuristic is higher push the head of the queue down, set the score to exact score
             elif h > marking.h:
+                # print("compute h:")
                 self.lp_solved += 1
                 marking.f = marking.g + h
                 marking.h = h
-                marking.x = deepcopy(x)
+                marking.x = deepcopy(list(x))
                 marking.trust = True
                 # need to requeue the marking
                 return marking, "REQUEUED"
             else:
+                # print("compute h:")
                 self.lp_solved += 1
                 # continue with this marking
                 marking.f = marking.g + h
                 marking.h = h
-                marking.x = deepcopy(x)
+                marking.x = deepcopy(list(x))
                 marking.trust = trustable
                 self.queued += 1
         return marking, "CLOSEDSUCCESSFUL"
 
     def expand_marking(self, cost_function, curr, incidence_matrix, cost_vec, closed):
-        # get subsequent firsing transitions
+        # get subsequent firing transitions
         enabled_trans1 = {}
         for p in curr.m:
             for t in p.ass_trans:
@@ -331,91 +323,104 @@ class Inc_astar:
         trans_to_visit_with_cost = [(t, cost_function[t]) for t in enabled_trans if not (
                 t is not None and is_log_move(t, utils.SKIP) and is_model_move(t, utils.SKIP))]
 
+        # print("trans:", trans_to_visit_with_cost)
         for t, cost in trans_to_visit_with_cost:
             # compute the new g score of the subsequent marking reached if t would be fired
             new_g = curr.g + cost
             new_m = utils.add_markings(curr.m, t.add_marking)
             self.traversed += 1
-
             # subsequent marking is fresh, compute the f score of this path and add it to open set
-            if new_m not in closed:
-                if not self.open_set.heap_find(new_m):
-                    self.num_retrieval += 1
-                    self.queued += 1
-                    self.order += 1
-                    self.num_insert += 1
-                    tp = Marking(new_g, new_g, 0, new_m, curr, t, None, False, self.order)
-                    update_tp = self.derive_or_estimate_heuristic(curr, tp, cost_vec, t,
-                                                                  incidence_matrix.transitions[t])
-                    start_time = timeit.default_timer()
-                    self.open_set.heap_insert(update_tp)
-                    self.time_heap += timeit.default_timer() - start_time
+            if new_m in closed:
+                # - continue?
+                # - no, some times the state is in close set but we visit again with smaller g
 
+                # the heuristic is not consistent, thus smaller g than closed could happen
+                if closed[new_m] > new_g:
+                    # print("发现了")
+                    del closed[new_m]
+                    self.order += 1
+                    new_h, new_x = self.derive_heuristic(incidence_matrix, cost_vec, curr.x, t, curr.h)
+                    trustable = self.trust_solution(new_x)
+                    tp = Marking(new_g + new_h, new_g, new_h, new_m, curr, t, deepcopy(new_x), trustable, self.order)
+                    if trustable and t.label[0] != ">>":
+                        curr_max = self.get_max_events(tp)
+                        if curr_max > self.max_rank:
+                            self.max_rank = curr_max
+                    start_time = timeit.default_timer()
+                    self.open_set.heap_insert(tp)
+                    self.time_heap += timeit.default_timer() - start_time
+                    self.num_insert += 1
+                    self.queued += 1
+                    self.num_reopen_close += 1
+                    if len(self.split_lst) == 3:
+                        print("remove from close:", new_m, "f:", tp.f, "g:", tp.g, 'trust:', tp.trust)
+
+            else:
+                start_time = timeit.default_timer()
+                m_in_open = self.open_set.heap_find(new_m)
+                self.time_heap += timeit.default_timer() - start_time
+                self.num_retrieval += 1
                 # subsequent marking is already in open set
-                else:
+                if m_in_open:
+                    start_time = timeit.default_timer()
                     i = self.open_set.heap_get(new_m)
+                    self.time_heap += timeit.default_timer() - start_time
                     self.num_retrieval += 1
                     if new_g < i.g:
-                        i.g = new_g
-                        i.t = t
-                        i.p = curr
+                        i.p, i.t, i.g = curr, t, new_g
                         if not i.trust:
-                            i = self.derive_or_estimate_heuristic(curr, i, cost_vec, t,
-                                                                  incidence_matrix.transitions[t])
+                            i = self.derive_or_estimate_heuristic(curr, i, cost_vec, t, incidence_matrix.transitions[t])
+                            # print("after derive:", i.m, i.trust, i.x)
                         i.f = i.g + i.h
+                        if len(self.split_lst) == 3:
+                            print("<g:", new_m, "f:", i.f, "g:", i.g, 'trust:', i.trust, "h:", self.get_path(i, incidence_matrix), i.x)
                         start_time = timeit.default_timer()
                         self.open_set.heap_update(i)
                         self.time_heap += timeit.default_timer() - start_time
                         self.num_update += 1
-
                     # subsequent marking has equal path, but the heuristic change from invalid to valid
-                    elif new_g == i.g:
+                    elif not i.trust:
                         new_i = Marking(i.f, i.g, i.h, i.m, i.p, i.t, deepcopy(i.x), i.trust, i.order)
-                        # print("update marking 2 before:", i.m, "f:", i.f, "g:", i.g, "h:", i.h, i.trust,i.t, t)
-                        if not new_i.trust:
-                            new_i = self.derive_or_estimate_heuristic(curr, new_i, cost_vec, t,
-                                                                      incidence_matrix.transitions[t])
-                            if new_i.trust:
-                                new_i.t = t
-                                new_i.p = curr
-                                i = new_i
-                                start_time = timeit.default_timer()
-                                self.open_set.heap_update(i)
-                                self.time_heap += timeit.default_timer() - start_time
-                                self.num_update += 1
-
-                    # subsequent marking has longer path, but the heuristic change from invalid to valid
-                    else:
-                        start_time = timeit.default_timer()
-                        new_i = Marking(i.f, i.g, i.h, i.m, i.p, i.t, deepcopy(i.x), i.trust, i.order)
-                        self.time_heap += timeit.default_timer() - start_time
-                        # print("update marking 3 before:", i.m, "f:", i.f, "g:", i.g, "h:", i.h, i.trust, i.t, t)
-                        if not new_i.trust:
-                            new_i = self.derive_or_estimate_heuristic(curr, new_i, cost_vec, t,
-                                                                      incidence_matrix.transitions[t])
-                            if new_i.trust:
-                                i = new_i
-                                start_time = timeit.default_timer()
-                                self.open_set.heap_update(i)
-                                self.time_heap += timeit.default_timer() - start_time
-                                self.num_update += 1
-
+                        new_i = self.derive_or_estimate_heuristic(curr, new_i, cost_vec, t,
+                                                                  incidence_matrix.transitions[t])
+                        if new_i.trust:
+                            i = new_i
+                            start_time = timeit.default_timer()
+                            self.open_set.heap_update(i)
+                            self.time_heap += timeit.default_timer() - start_time
+                            self.num_update += 1
+                            if len(self.split_lst) == 3:
+                                print(">=g:", new_m, "f:", new_i.f, "g:", new_i.g, 'trust:', new_i.trust, "h:", new_i.h)
+                else:
+                    self.order += 1
+                    new_h, new_x = self.derive_heuristic(incidence_matrix, cost_vec, curr.x, t, curr.h)
+                    trustable = self.trust_solution(new_x)
+                    tp = Marking(new_g + new_h, new_g, new_h, new_m, curr, t, deepcopy(new_x), trustable, self.order)
+                    if trustable and t.label[0] != ">>":
+                        curr_max = self.get_max_events(tp)
+                        if curr_max > self.max_rank:
+                            self.max_rank = curr_max
+                    start_time = timeit.default_timer()
+                    self.open_set.heap_insert(tp)
+                    self.time_heap += timeit.default_timer() - start_time
+                    self.num_insert += 1
+                    self.queued += 1
+                    if len(self.split_lst) == 3:
+                        print("first time:", new_m, "f:", tp.f, "g:", tp.g, 'trust:', tp.trust, "h:", tp.h)
 
     def derive_or_estimate_heuristic(self, from_marking, to_marking, cost_vec, t, t_idx):
         # if from marking has exact heuristic, we can derive from it
         if from_marking.x[t_idx] >= 1 and from_marking.h != "HEURISTICINFINITE":
             x_prime = deepcopy(from_marking.x)
             x_prime[t_idx] -= 1
-            to_marking.x = x_prime
-            to_marking.h = max(from_marking.h - cost_vec[t_idx], to_marking.h)
-            if to_marking.h < 0:
-                print("not working for h")
+            to_marking.x = deepcopy(x_prime)
+            to_marking.h = from_marking.h - cost_vec[t_idx]
             to_marking.f = to_marking.g + to_marking.h
             to_marking.trust = True
             if t.label[0] != ">>":
-                if self.get_max_events(from_marking) + 1 > self.max_rank:
-                    self.max_rank = self.get_max_events(from_marking) + 1
-
+                temp_max = self.get_max_events(to_marking)
+                if self.get_max_events(to_marking) > self.max_rank:
+                    self.max_rank = temp_max
         # if heuristic of from marking is infinite, then we return
         elif from_marking.h == "HEURISTICINFINITE":
             to_marking.h = "HEURISTICINFINITE"
@@ -424,19 +429,25 @@ class Inc_astar:
             x_prime[t_idx] -= 1
             to_marking.x = x_prime
         else:
-            # if to_marking.m == self.final_marking:
-            #     to_marking.h = 0
-            #     to_marking.f = to_marking.g
-            #     to_marking.trust = True
-            # else:
             h = from_marking.h - cost_vec[t_idx]
             if h < 0:
                 h = 0
             if h > to_marking.h:
                 to_marking.h = h
-                to_marking.f = h + to_marking.g
-                to_marking.trust = False
+            to_marking.f = to_marking.h + to_marking.g
+            to_marking.trust = False
         return to_marking
+
+    def derive_heuristic(self, incidence_matrix, cost_vec, x, t, h):
+        x_prime = list(deepcopy(x))
+        x_prime[incidence_matrix.transitions[t]] -= 1
+        return max(0, h - cost_vec[incidence_matrix.transitions[t]]), x_prime
+
+    def trust_solution(self, x):
+        for v in x:
+            if v < -0.001:
+                return False
+        return True
 
     def get_max_events(self, marking):
         if marking.t is None:
@@ -471,12 +482,14 @@ class Inc_astar:
             'lp_solved': self.lp_solved,
             "lp_for_ini_solved": self.lp_for_ini_solved,
             'restart': self.restart,
-            "time_heuristic": self.time_h,
+            "time_heuristic": self.time_heuristic,
             "time_heap": self.time_heap,
             "num_insert": self.num_insert,
-            "num_pop": self.num_pop,
+            "num_removal": self.num_removal,
             "num_retrieval": self.num_retrieval,
             "num_update": self.num_update,
+            "num_reopen_close": self.num_reopen_close,
+            'heap_total': self.num_update + self.num_insert + self.num_removal + self.num_retrieval,
             'visited_states': self.visited,
             'queued_states': self.queued,
             'traversed_arcs': self.traversed,
@@ -486,12 +499,6 @@ class Inc_astar:
             'alignment': alignment,
         }
 
-    def trust_solution(self, x):
-        for v in x:
-            if v < 0:
-                return False
-        return True
-
     def vectorize_initial_final_cost(self, incidence_matrix, ini, fin, cost_function):
         ini_vec = incidence_matrix.encode_marking(ini)
         fin_vec = incidence_matrix.encode_marking(fin)
@@ -500,9 +507,14 @@ class Inc_astar:
             cost_vec[incidence_matrix.transitions[t]] = cost_function[t]
         return np.array(ini_vec), np.array(fin_vec), np.array(cost_vec)
 
+    def get_path(self, marking, incidence_matrix):
+        if marking.p is None:
+            return ""
+        else:
+            return str(incidence_matrix.transitions[marking.t]) +", "+ self.get_path(marking.p, incidence_matrix)
+
 
 class IncidenceMatrix(object):
-
     def __init__(self, net):
         self.__A, self.__B, self.__place_indices, self.__transition_indices = self.__construct_matrix(net)
 
@@ -528,30 +540,49 @@ class IncidenceMatrix(object):
         self.matrix_built = True
         p_index, t_index = {}, {}
         places = sorted([x for x in net.places], key=lambda x: (str(x.name), id(x)))
-        transitions = sorted([x for x in net.transitions], key=lambda x: (str(x.name), id(x)))
+        transitions_lst = sorted([x for x in net.transitions], key=lambda x: (str(x.name[0][1]), id(x)))
+
+        transitions = []
+        sync_trans = [0 for i in range(len(transitions_lst))]
+        log_trans = [0 for i in range(len(transitions_lst))]
+        for i in transitions_lst:
+            if i.label[0] == '>>':
+                transitions.append(i)
+        for i in transitions_lst:
+            if i.label[1] == '>>':
+                key1 = int(re.search("(\d+)(?!.*\d)", i.name[0]).group())
+                log_trans[key1] = i
+        for i in log_trans:
+            if i == 0:
+                continue
+            transitions.append(i)
+        for i in transitions_lst:
+            if i.label[0] != '>>' and i.label[1] != ">>":
+                key1 = int(re.search("(\d+)(?!.*\d)", i.name[0]).group())
+                sync_trans[key1] = i
+
+        for i in sync_trans:
+            if i == 0:
+                continue
+            transitions.append(i)
 
         for p in places:
             p_index[p] = len(p_index)
         for t in transitions:
             t_index[t] = len(t_index)
         p_index_sort = sorted(p_index.items(), key=lambda kv: kv[0].name, reverse=True)
-        t_index_sort = sorted(t_index.items(), key=lambda kv: kv[0].name, reverse=True)
         new_p_index = dict()
         for i in range(len(p_index_sort)):
             new_p_index[p_index_sort[i][0]] = i
-        new_t_index = dict()
-        for i in range(len(t_index_sort)):
-            new_t_index[t_index_sort[i][0]] = i
-
-        a_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
-        b_matrix = np.array([[0 for i in range(len(new_t_index))] for j in range(len(new_p_index))])
+        a_matrix = np.array([[0 for i in range(len(t_index))] for j in range(len(new_p_index))])
+        b_matrix = np.array([[0 for i in range(len(t_index))] for j in range(len(new_p_index))])
         for p in net.places:
             for a in p.in_arcs:
-                a_matrix[new_p_index[p]][new_t_index[a.source]] += 1
+                a_matrix[new_p_index[p]][t_index[a.source]] += 1
             for a in p.out_arcs:
-                a_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
-                b_matrix[new_p_index[p]][new_t_index[a.target]] -= 1
-        return a_matrix, b_matrix, new_p_index, new_t_index
+                a_matrix[new_p_index[p]][t_index[a.target]] -= 1
+                b_matrix[new_p_index[p]][t_index[a.target]] -= 1
+        return a_matrix, b_matrix, new_p_index, t_index
 
     a_matrix = property(__get_a_matrix)
     b_matrix = property(__get_b_matrix)

@@ -7,148 +7,132 @@ from pm4py.algo.conformance.alignments.petri_net.variants import state_equation_
 import warnings
 import pandas as pd
 
+import astar_bid
 import astar_pm4py
 import astar_precompute
 import astar_reverse
 import astar_tue
 from tqdm import tqdm
 
+import astar_tue_open_set_heapq
+import astar_tue_open_set_hotq
 import astar_tue_pp
-import astar_tue_test
 import construction
 
 
 def search():
     # Here to change the log file in dataset: the .xes file
+    event_log = xes_importer.apply('log\HBn0.xes')
+    model_net, model_im, model_fm = import_net('model\hb02.pnml')
 
-    # event_log = xes_importer.apply('data\Log_hospital_new.xes')
-    event_log = xes_importer.apply('data\Log_hospital_new.xes')
-
-    # Here to change the model in dataset: the .pnml file
-    model_net, model_im, model_fm = import_net('F:\Thesis\data\hb02.pnml')
-    # the colunm name in result csv file
+    # the colunm name in result csv filez
     field_names = ["time_sum",
-                   "time_h",
+                   "time_heuristic",
                    "time_heap",
                    "lp_solved",
+                   "lp_for_ini_solved",
+                   "restart",
                    "visited_states",
                    "queued_states",
                    "traversed_arcs",
-                   "restart",
+                   "reopen_close",
+                   "heap_insert",
+                   "heap_remove",
+                   "heap_update",
+                   "heap_retrieval",
+                   "heap_total",
+                   "split_num",
                    "trace_length",
-                   'cost']
+                   "alignment_length",
+                   "cost"]
+    align_lst = ["", ]
+
     df = pd.DataFrame(columns=field_names)
-    df.to_csv('F:\Thesis\data\hospital\hospital_pp_20220124.csv', sep=',', index=False)
+    df.to_csv('F:\Thesis\data\data_hospital_bill\hospital_bill_tue_open_set_heapq_original.csv', sep=',', index=False)
 
     # iterate every case in this xes log file
+    # while True:
     for case_index in tqdm(range(len(event_log))):
-        if case_index < 90:
-            continue
-
-        result2 = {}
-        result = {'time_sum': [], 'time_h': [], 'time_heap': [], 'cost': [], 'visited_states': [], "queued_states": [],
-                  'traversed_arcs': [], 'lp_solved': [], 'restart': [], "trace_length": []}
         
-        # loop 5 times and get average
-        for i in range(1):
-            '''
-            # Choose one of the following align, then save the results in csv file for further analysis
-            # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
-            # and datastructures" from Eindhoven University
-            '''
-            # align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            align1 = astar_tue_pp.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-            align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            # print(align)
+        result = {'time_sum': 0, 'time_heuristic': 0, 'time_heap': 0, 'split_num': 0,
+                  'restart': 0, 'visited_states': 0, "queued_states": 0, 'traversed_arcs': 0,
+                  'lp_solved': 0, 'lp_for_ini_solved': 0, "reopen_close": 0,
+                  'heap_insert': 0, 'heap_remove': 0, 'heap_retrieval': 0, 'heap_update': 0, "heap_total": 0,
+                  'trace_length': 0, 'cost': 0, 'alignment_length': 0}
+        '''
+        # Choose one of the following align, then save the results in csv file for further analysis
+        # Choice 1: the original algorithm in paper "Efficiently computing alignments algorithm
+        # and datastructures" from Eindhoven University
+        '''
+        align1 = astar_tue_open_set_heapq.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+        align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
 
-            # align1 = astar_reverse.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
-            # print(align['cost'], "\n")
-            # align = astar_tue.apply(case, model_net, model_im, model_fm)
-            # align = cache_opt.apply(case, model_net, model_im, model_fm)
-            # align = astar_pm4py.apply(event_log[case_index], model_net, model_im, model_fm)
+        # align1 = astar_tue_open_set_hotq.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+        # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
 
-            '''
-            # Choice 2: the algorithm from in paper "Improving Alignment Computation
-            # using Model-based Preprocessing" from Eindhoven University
-            trace_lst1 = []
-            trace_lst2 = []
-            for event_index, event in enumerate(event_log[case_index]):
-                trace_lst1.append(event['concept:name'])
-                trace_lst2.insert(0, event['concept:name'])
-            violate_lst_forward = precompute_forward(trace_lst1, ic)
-            violate_lst_backward = precompute_backward(trace_lst2, ic)
-            align = astar_precompute.apply(case, model_net, model_im, model_fm)
-            '''
-            # trace_lst = []
-            # for event_index, event in enumerate(event_log[case_index]):
-            #     trace_lst.append(event['concept:name'])
-            # ic = astar_precompute.construct(model_net)
-            # split_list = construction.precompute_forward(trace_lst, ic)
-            # align1 = astar_precompute.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
-            # align = align1.apply(event_log[case_index], model_net, model_im, model_fm, split_list)
-            
-            '''
-            # Choice 3: the algorithm from litian
-            align = astar_bid.apply(case, model_net, model_im, model_fm)
-            '''
-            # align = astar_bid.apply(case, model_net, model_im, model_fm)
+        # align1 = astar_tue.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+        # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
+        # print(align)
 
-            # Choice 8: the algorithm from pm4py
-            # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
-            # align = astar_tue_test.apply(event_log[case_index], model_net, model_im, model_fm)
+        # align1 = astar_bid.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+        # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
 
-            # print(align)
+        # align1 = astar_tue_pp.Inc_astar(event_log[case_index], model_net, model_im, model_fm)
+        # align = align1.apply(event_log[case_index], model_net, model_im, model_fm)
 
-            # align = astar_pm4py.apply(case, model_net, model_im, model_fm)
-            # align = state_equation_a_star.apply(event_log[case_index], model_net, model_im, model_fm)
-            # align['time_heap'] = 0
-            # align['restart'] = 0
-            # align['trace_length'] = 0
+        result['time_sum'] = align['time_sum']
+        result['time_heuristic'] = align['time_heuristic']
+        result['time_heap'] = align['time_heap']
+        result['visited_states'] = align['visited_states']
+        result['queued_states'] = align['queued_states']
+        result['traversed_arcs'] = align['traversed_arcs']
+        result['lp_solved'] = align['lp_solved']
+        result['lp_for_ini_solved'] = align['lp_for_ini_solved']
+        result['reopen_close'] = align['num_reopen_close']
+        result['heap_insert'] = align['num_insert']
+        result['heap_remove'] = align['num_removal']
+        result['heap_retrieval'] = align['num_retrieval']
+        result['heap_update'] = align['num_update']
+        result['heap_total'] = align['heap_total']
+        result['restart'] = align['restart']
+        result['split_num'] = align['split_num']
+        result['trace_length'] = align['trace_length']
+        result['alignment_length'] = align['alignment_length']
+        result['cost'] = align['cost']
+        align_lst.append(align['alignment'])
 
-            result['time_sum'].append(align['time_sum'])
-            result['time_h'].append(align['time_h'])
-            result['time_heap'].append(align['time_heap'])
-            result['cost'].append(align['cost'])
-            result['visited_states'].append(align['visited_states'])
-            result['queued_states'].append(align['queued_states'])
-            result['traversed_arcs'].append(align['traversed_arcs'])
-            result['lp_solved'].append(align['lp_solved'])
-            result['restart'].append(align['restart'])
-            result['trace_length'].append(align['trace_length'])
-
-        result2['time_sum'] = statistics.mean(result['time_sum'])
-        result2['time_h'] = statistics.mean(result['time_h'])
-        result2['time_heap'] = statistics.mean(result['time_heap'])
-        result2['lp_solved'] = statistics.mean(result['lp_solved'])
-        result2['visited_states'] = statistics.mean(result['visited_states'])
-        result2['queued_states'] = statistics.mean(result['queued_states'])
-        result2['traversed_arcs'] = statistics.mean(result['traversed_arcs'])
-        result2['cost'] = statistics.mean(result['cost'])
-        result2['restart'] = statistics.mean(result['restart'])
-        result2['trace_length'] = statistics.mean(result['trace_length'])
-
-        with open('F:\Thesis\data\hospital\hospital_pp_20220124.csv', 'a') as f_object:
+        with open('F:\Thesis\data\data_hospital_bill\hospital_bill_tue_open_set_heapq_original.csv', 'a') as f_object:
             dictwriter_object = DictWriter(f_object, fieldnames=field_names)
             # Pass the dictionary as an argument to the Writerow()
-            dictwriter_object.writerow(result2)
+            dictwriter_object.writerow(result)
             # Close the file object
             f_object.close()
-    df = pd.read_csv('F:\Thesis\data\hospital\hospital_pp_20220124.csv')
+
+    df = pd.read_csv('F:\Thesis\data\data_hospital_bill\hospital_bill_tue_open_set_heapq_original.csv')
     total = df.sum()
     df2 = pd.DataFrame([total.transpose()], columns=["time_sum",
-                                                     "time_h",
+                                                     "time_heuristic",
                                                      "time_heap",
                                                      "lp_solved",
+                                                     "lp_for_ini_solved",
+                                                     "restart",
                                                      "visited_states",
                                                      "queued_states",
                                                      "traversed_arcs",
-                                                     "restart",
+                                                     "reopen_close",
+                                                     "heap_insert",
+                                                     "heap_remove",
+                                                     "heap_update",
+                                                     "heap_retrieval",
+                                                     "heap_total",
+                                                     "split_num",
                                                      "trace_length",
-                                                     "cost"])
+                                                     "alignment_length",
+                                                     "cost"
+                                                     ])
     df3 = pd.concat([df2, df]).reset_index(drop=True)
-    df3.to_csv('F:\Thesis\data\hospital\hospital_pp_20220124.csv', index=False)
+    df3['alignment'] = align_lst
+    df3.to_csv('F:\Thesis\data\data_hospital_bill\hospital_bill_tue_open_set_heapq_original.csv', index=False)
 
 
 if __name__ == "__main__":

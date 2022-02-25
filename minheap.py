@@ -1,11 +1,37 @@
-def _has_parent(idx):
-    if idx == 0:
-        return False
-    else:
-        return True
+class BinHeap:
+    def __init__(self):
+        self.heap = []
 
+    def insert(self, data):
+        self.heap.append(data)
+        self.heapify_up()
 
-import timeit
+    def heapify_up(self):
+        child = len(self.heap) - 1
+        parent = (child - 1) // 2
+        while self.heap[child] < self.heap[parent] and child != 0:
+            self.heap[child], self.heap[parent] = self.heap[parent], self.heap[child]
+            child = parent
+            parent = (child - 1) // 2
+
+    def pop(self):
+        if not self.heap:
+            return False
+        self.heap[0], self.heap[-1] = self.heap[-1], self.heap[0]
+        data = self.heap.pop()
+        self.heapify_down()
+        return data
+
+    def heapify_down(self):
+        i = 0
+        while (2*i+1) < len(self.heap):
+            smaller_idx = 2*i+1
+            if (2*i+2) < len(self.heap) and self.heap[2*i+2] < self.heap[2*i+1]:
+                smaller_idx = 2*i+2
+            if self.heap[smaller_idx] > self.heap[i]:
+                return
+            self.heap[smaller_idx], self.heap[i] = self.heap[i], self.heap[smaller_idx]
+            i = smaller_idx
 
 
 class MinHeap:
@@ -69,11 +95,7 @@ class MinHeap:
     def _heap_heapify_up(self, idx):
         index = idx
         while index != 0 and self.lst[index] < self.lst[int((index - 1) // 2)]:
-            # self.swap(int((index - 1) // 2), index)
             parent_index = int((index - 1) // 2)
-            # self.lst[index], self.lst[parent_index] = self.lst[parent_index], self.lst[index]
-            # self.idx[self.lst[index].m], self.idx[self.lst[parent_index].m] = \
-            #     self.idx[self.lst[parent_index].m], self.idx[self.lst[index].m]
             self.swap(parent_index, index)
             index = parent_index
 
@@ -114,12 +136,16 @@ class Marking:
 
 
 if __name__ == '__main__':
-    m1 = Marking("a", 6, [0])
-    m2 = Marking("b", 1, [3])
-    m3 = Marking("c", 2, [2])
-    m4 = Marking("d", 3, [5])
-    m5 = Marking("e", 4, [1])
-    m6 = Marking("f", 5, [6])
+    m1 = Marking("a", 1, [0])
+    m2 = Marking("b", 3, [3])
+    m3 = Marking("c", 5, [2])
+    m4 = Marking("d", 7, [5])
+    m5 = Marking("e", 9, [1])
+    m6 = Marking("f", 11, [6])
+    m7 = Marking("g", 13, [1])
+    m8 = Marking("h", 15, [6])
+    m9 = Marking("i", 17, [1])
+    m10 = Marking("j", 19, [6])
 
     heap1 = MinHeap()
     heap1.heap_insert(m1)
@@ -128,26 +154,32 @@ if __name__ == '__main__':
     heap1.heap_insert(m4)
     heap1.heap_insert(m5)
     heap1.heap_insert(m6)
+    heap1.heap_insert(m7)
+    heap1.heap_insert(m8)
+    heap1.heap_insert(m9)
+    heap1.heap_insert(m10)
 
     print("after insertion")
     heap1.print_idx()
     heap1.print_lst()
 
-    a1 = heap1.heap_get("a")
-
+    m1.f = 12
+    heap1.heap_update(m1)
+    heap1.print_idx()
+    heap1.print_lst()
     # 这样赋值是会导致a的x也变化的
-    b1 = a1
-    b1.x = [145]
-    b1.f = 0
-
-    # 这样赋值才不会改变a
-    b1 = Marking(a1.m, a1.f, a1.x)
-
-    heap1.print_idx()
-    for i in heap1.lst:
-        print(i.m, i.f, i.x)
-
-    heap1.heap_update(a1)
-    heap1.print_idx()
-    for i in heap1.lst:
-        print(i.m, i.f, i.x)
+    # b1 = a1
+    # b1.x = [145]
+    # b1.f = 0
+    #
+    # # 这样赋值才不会改变a
+    # b1 = Marking(a1.m, a1.f, a1.x)
+    #
+    # heap1.print_idx()
+    # for i in heap1.lst:
+    #     print(i.m, i.f, i.x)
+    #
+    # heap1.heap_update(a1)
+    # heap1.print_idx()
+    # for i in heap1.lst:
+    #     print(i.m, i.f, i.x)
