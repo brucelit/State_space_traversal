@@ -1,0 +1,6 @@
+graphviz==0.16
+gurobipy==9.1.1
+numpy==1.22.0
+pandas==1.4.1
+pm4py==2.2.19.2
+tqdm==4.50.2
